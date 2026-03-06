@@ -11,7 +11,7 @@
     <p><em>Carregando tarefas...</em></p>
 }
 else
-{   
+{
     <div class="mb-3">
         <a href="/add-task" class="btn btn-primary">+ Nova Tarefa</a>
     </div>
@@ -22,19 +22,23 @@ else
             <div class="card-body">
                 <h5 class="card-title">@task.Title</h5>
                 <p class="card-text">@task.Description</p>
-                <p><strong>Prioridade:</strong> @GetPriorityLabel(task.Priority)</p>
-                <p><strong>Categoria:</strong> @task.Category</p>
-                <p><strong>Tags:</strong> @string.Join(", ", task.Tags)</p>
-                <p><strong>Criada:</strong> @task.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
-                @if (task.DueDate.HasValue)
-                {
-                    <p><strong>Vence:</strong> @task.DueDate.Value.ToString("dd/MM/yyyy")</p>
-                }
-                <small class="text-muted">@task.Comments?.Count comentários</small>
+                <p><strong>Prioridade:</strong>
+                    <span class="badge @GetPriorityClass(task.Priority))">
+                        @GetPriorityEmoji(task.Priority) @task.Priority</span>
+                    </p>
+
+                    <p><strong>Categoria:</strong> @task.Category</p>
+                    <p><strong>Tags:</strong> @string.Join(", ", task.Tags)</p>
+                    <p><strong>Criada:</strong> @task.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                    @if (task.DueDate.HasValue)
+                    {
+                        <p><strong>Vence:</strong> @task.DueDate.Value.ToString("dd/MM/yyyy")</p>
+                    }
+                    <small class="text-muted">@task.Comments?.Count comentários</small>
+                </div>
             </div>
-        </div>
+        }
     }
-}
 
 @code {
     private List<TaskItem>? tasks;
@@ -43,15 +47,10 @@ else
         tasks = await TaskService.GetAllTasksAsync();
     }
 
-    private string GetPriorityLabel(int priority)
-    {
-        return priority switch
-        {
-            1 => "🔴 Crítica",
-            2 => "🟠 Alta",
-            3 => "🟡 Normal",
-            4 => "🟢 Baixa",
-            _ => "Normal"
-        };
-    }
+    private string GetPriorityEmoji(int priority) =>
+        priority switch { <= 2 => "🔴", <= 5 => "🟠", <= 10 => "🟡", <= 20 => "🟢", _ => "⚪" };
+
+    private string GetPriorityClass(int priority) =>
+        priority switch { <= 2 => "bg-danger", <= 5 => "bg-warning", <= 10 => "bg-info", _ => "bg-success" };
+
 }

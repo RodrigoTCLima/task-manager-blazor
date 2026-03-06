@@ -1,0 +1,159 @@
+@page "/add-task"
+@page "/edit-task/{TaskId:int}"
+@using TaskManager.Models
+@using TaskManager.Services
+@using System.ComponentModel.DataAnnotations
+@inject TaskService TaskService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>@(editingTask != null ? "Editar Tarefa" : "Nova Tarefa")</PageTitle>
+
+<h3>@(editingTask != null ? "Editar Tarefa" : "Nova Tarefa")</h3>
+
+<EditForm Model="@taskModel" OnValidSubmit="@HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <label>Título *</label>
+            <InputText @bind-Value="taskModel.Title" class="form-control" />
+            <ValidationMessage For="@(() => taskModel.Title)" />
+        </div>
+        <div class="col-md-4">
+            <label>Prioridade (número menor = mais urgente)</label>
+            <div class="input-group">
+                <InputNumber @bind-Value="taskModel.Priority" class="form-control" min="1" max="100" />
+                <span class="input-group-text">@GetPriorityEmoji(taskModel.Priority)
+                </span>
+            </div>
+            <div class="form-text">
+                Ex: 1=🔴 Crítica, 5=🟡 Normal, 20=🟢 Baixa
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label>Descrição</label>
+            <InputTextArea @bind-Value="taskModel.Description" class="form-control" rows="3" />
+        </div>
+        <div class="col-md-6">
+            <label>Categoria</label>
+            <InputSelect @bind-Value="taskModel.Category" class="form-select">
+                <option>Geral</option>
+                <option>Trabalho</option>
+                <option>Pessoal</option>
+                <option>Estudos</option>
+                <option>Saúde</option>
+            </InputSelect>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <label>Prazo</label>
+            <InputDate @bind-Value="taskModel.DueDate" class="form-control"></InputDate>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <label>Alarme</label>
+        <label class="form-check-label">
+            <InputCheckbox @bind-Value="taskModel.HasAlarm" class="form-check-input" />
+            Ativar alarme para esta tarefa
+        </label>
+        @if (taskModel.HasAlarm)
+        {
+            <InputDate @bind-Value="taskModel.AlarmTime" class="form-control mt-1" />
+        }
+    </div>
+
+    <div class="col-md-3">
+        <label>Recorrente</label>
+        <label class="form-check-label">
+            <InputCheckbox @bind-Value="taskModel.IsRecurrent" class="form-check-input" />
+            Tarefa recorrente
+        </label>
+        @if (taskModel.IsRecurrent)
+        {
+            <InputSelect @bind-Value="taskModel.RecurrencePattern" class="form-select mt-1">
+                <option value="Daily">Diária</option>
+                <option value="Weekly">Semanal</option>
+                <option value="Monthly">Mensal</option>
+            </InputSelect>
+        }
+    </div>
+    <div class="col-md-3">
+        <label>Tags (separadas por vírgula)</label>
+        <InputText @bind-Value="@tagsInput" class="form-control" placeholder="ex: urgente,trabalho" />
+    </div>
+
+    <div class="mb-3">
+        <label>Dependências (IDs de tarefas, separadas por vírgula)</label>
+        <InputText @bind-Value="@dependenciesInput" class="form-control" placeholder="ex: 1,3,5" />
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">@((editingTask != null) ? "Salvar Alterações" : "Adicionar            Tarefa")</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancelar</button>
+    </div>
+</EditForm>
+@code {
+    [Parameter] public int? TaskId { get; set; }
+    private TaskItem? editingTask;
+    private TaskItem taskModel = new();
+    private string tagsInput = "";
+    private string dependenciesInput = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TaskId.HasValue)
+        {
+            editingTask = await TaskService.GetTaskByIdAsync(TaskId.Value);
+            if (editingTask != null)
+            {
+                taskModel = editingTask;
+                tagsInput = string.Join(",", taskModel.Tags);
+            }
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        // Processar tags
+        taskModel.Tags = tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                  .Select(t => t.Trim())
+                                  .ToList();
+
+        if (TaskId.HasValue && editingTask != null)
+        {
+            await TaskService.UpdateTaskAsync(taskModel);
+        }
+        else
+        {
+            await TaskService.CreateTaskAsync(taskModel);
+        }
+
+        Navigation.NavigateTo("/tasks");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/tasks");
+    }
+
+    private string GetPriorityEmoji(int priority)
+    {
+        return priority switch
+        {
+            <= 2 => "🔴",
+            <= 5 => "🟠",
+            <= 10 => "🟡",
+            <= 20 => "🟢",
+            _ => "⚪"
+        };
+    }
+
+}
