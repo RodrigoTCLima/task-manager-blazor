@@ -1,6 +1,7 @@
 using TaskManager.Components;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Data;
+using TaskManager.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,8 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite("Data Source=tasks.db"));
+
+builder.Services.AddScoped<TaskService>();
 
 var app = builder.Build();
 

@@ -1,0 +1,57 @@
+@page "/tasks"
+@using TaskManager.Services
+@using TaskManager.Models
+@inject TaskService TaskService
+@rendermode InteractiveServer
+
+<PageTitle>Minhas Tarefas</PageTitle>
+<h1>Gerenciador de Tarefas</h1>
+@if (tasks == null)
+{
+    <p><em>Carregando tarefas...</em></p>
+}
+else
+{   
+    <div class="mb-3">
+        <a href="/add-task" class="btn btn-primary">+ Nova Tarefa</a>
+    </div>
+
+    @foreach (var task in tasks)
+    {
+        <div class="card mb-2">
+            <div class="card-body">
+                <h5 class="card-title">@task.Title</h5>
+                <p class="card-text">@task.Description</p>
+                <p><strong>Prioridade:</strong> @GetPriorityLabel(task.Priority)</p>
+                <p><strong>Categoria:</strong> @task.Category</p>
+                <p><strong>Tags:</strong> @string.Join(", ", task.Tags)</p>
+                <p><strong>Criada:</strong> @task.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                @if (task.DueDate.HasValue)
+                {
+                    <p><strong>Vence:</strong> @task.DueDate.Value.ToString("dd/MM/yyyy")</p>
+                }
+                <small class="text-muted">@task.Comments?.Count comentários</small>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private List<TaskItem>? tasks;
+    protected override async Task OnInitializedAsync()
+    {
+        tasks = await TaskService.GetAllTasksAsync();
+    }
+
+    private string GetPriorityLabel(int priority)
+    {
+        return priority switch
+        {
+            1 => "🔴 Crítica",
+            2 => "🟠 Alta",
+            3 => "🟡 Normal",
+            4 => "🟢 Baixa",
+            _ => "Normal"
+        };
+    }
+}
