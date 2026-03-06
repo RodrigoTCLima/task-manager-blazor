@@ -116,7 +116,17 @@
             {
                 taskModel = editingTask;
                 tagsInput = string.Join(",", taskModel.Tags);
+                dependenciesInput = string.Join(",", taskModel.DependencyOnTaskIds ?? new List<int>());
             }
+            else
+            {
+                // Tarefa não encontrada, volta pra lista
+                Navigation.NavigateTo("/tasks");
+            }
+        }
+        else
+        {
+            taskModel.CreatedAt = DateTime.Now;
         }
     }
 
@@ -124,11 +134,19 @@
     {
         // Processar tags
         taskModel.Tags = tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                                  .Select(t => t.Trim())
-                                  .ToList();
+            .Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
+
+        // Processar dependências (IDs numéricos)
+        if (!string.IsNullOrEmpty(dependenciesInput))
+        {
+            taskModel.DependencyOnTaskIds = dependenciesInput.Split(',')
+                .Select(id => int.TryParse(id.Trim(), out int taskId) ? taskId : 0)
+                .Where(id => id > 0).ToList();
+        }
 
         if (TaskId.HasValue && editingTask != null)
         {
+            taskModel.Id = editingTask.Id; // Preserva ID
             await TaskService.UpdateTaskAsync(taskModel);
         }
         else
@@ -144,16 +162,6 @@
         Navigation.NavigateTo("/tasks");
     }
 
-    private string GetPriorityEmoji(int priority)
-    {
-        return priority switch
-        {
-            <= 2 => "🔴",
-            <= 5 => "🟠",
-            <= 10 => "🟡",
-            <= 20 => "🟢",
-            _ => "⚪"
-        };
-    }
-
+    private string GetPriorityEmoji(int priority) => 
+        priority switch { <=2 => "🔴", <=5 => "🟠", <=10 => "🟡", <=20 => "🟢", _ => "⚪" };
 }

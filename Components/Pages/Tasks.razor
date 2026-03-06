@@ -95,7 +95,7 @@ else
                     </div>
                     <div class="col-md-3">
                         Tags: @string.Join(" ", task.Tags.Take(3).Select(t =>
-                                                    $"<span class='badge bg-secondary ms-1'>#{t}</span>"))
+                                                                            $"<span class='badge bg-secondary ms-1'>#{t}</span>"))
                         @(task.Tags.Count > 3 ? "..." : "")
                     </div>
                     <div class="col-md-3">
@@ -118,9 +118,14 @@ else
                 }
             </div>
             <div class="card-footer text-end">
-                <a href="/edit-task/@task.Id" class="btn btn-outline-primary btn-sm me-2">Editar</a>
-                <button class="btn btn-outline-danger btn-sm me-2" @onclick="() => ShowDeleteConfirm(task.Id)">Excluir</button>
+                <a href="/edit-task/@task.Id" class="btn btn-outline-primary btn-sm me-2">
+                    <i class="bi bi-pencil"></i> Editar
+                </a>
+                <button class="btn btn-outline-danger btn-sm" @onclick="() => ShowDeleteConfirm(task.Id)">
+                    <i class="bi bi-trash"></i> Excluir
+                </button>
             </div>
+
         </div>
     }
 }
