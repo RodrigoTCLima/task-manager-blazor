@@ -1,0 +1,16 @@
+# .NET Core
+bin/
+obj/
+*.db
+*.user
+*.suo
+!.gitignore
+!README.md
+
+# Entity Framework Migrations (opcional, manter local)
+**/bin/
+**/obj/
+**/Properties/launchSettings.json
+
+# VS Code
+.vscode/settings.json
