@@ -4,47 +4,175 @@
 @inject TaskService TaskService
 @rendermode InteractiveServer
 
-<PageTitle>Minhas Tarefas</PageTitle>
+<PageTitle>Tarefas</PageTitle>
+
 <h1>Gerenciador de Tarefas</h1>
-@if (tasks == null)
+
+<!-- FILTROS -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5><i class="bi bi-funnel"></i> Filtros</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label>Prioridade Máxima</label>
+                <InputNumber @bind-Value="maxPriority" class="form-control" min="1" max="100" />
+            </div>
+            <div class="col-md-3">
+                <label>Categoria</label>
+                <InputSelect @bind-Value="selectedCategory" class="form-select">
+                    <option value="">Todas</option>
+                    <option>Geral</option>
+                    <option>Trabalho</option>
+                    <option>Pessoal</option>
+                    <option>Estudos</option>
+                    <option>Saúde</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-2">
+                <label>Status</label>
+                <InputSelect @bind-Value="statusFilter" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="pending">Pendentes</option>
+                    <option value="completed">Concluídas</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-2">
+                <label>Tag</label>
+                <InputText @bind-Value="tagFilter" class="form-control" placeholder="urgente" />
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-primary w-100" @onclick="ApplyFilters">Filtrar</button>
+            </div>
+        </div>
+        <div class="mt-3">
+            <small class="text-muted">Mostrando @filteredTasks.Count de @allTasks.Count tarefas</small>
+        </div>
+    </div>
+</div>
+
+<!-- BOTÃO NOVA TAREFA -->
+<div class="mb-3">
+    <a href="/add-task" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Nova Tarefa
+    </a>
+</div>
+
+@if (filteredTasks == null)
 {
-    <p><em>Carregando tarefas...</em></p>
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Carregando...</span>
+    </div>
+}
+else if (!filteredTasks.Any())
+{
+    <div class="alert alert-info">
+        <h5>Nenhuma tarefa encontrada</h5>
+        <p>Crie sua primeira tarefa ou ajuste os filtros.</p>
+        <a href="/add-task" class="btn btn-primary">Criar Primeira Tarefa</a>
+    </div>
 }
 else
 {
-    <div class="mb-3">
-        <a href="/add-task" class="btn btn-primary">+ Nova Tarefa</a>
-    </div>
-
-    @foreach (var task in tasks)
+    @foreach (var task in filteredTasks)
     {
-        <div class="card mb-2">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-start">
+                <h5 class="mb-0">@task.Title</h5>
+                <span class="badge @(GetPriorityClass(task.Priority)) fs-6">
+                    @GetPriorityEmoji(task.Priority) @task.Priority
+                </span>
+            </div>
             <div class="card-body">
-                <h5 class="card-title">@task.Title</h5>
-                <p class="card-text">@task.Description</p>
-                <p><strong>Prioridade:</strong>
-                    <span class="badge @GetPriorityClass(task.Priority))">
-                        @GetPriorityEmoji(task.Priority) @task.Priority</span>
-                    </p>
-
-                    <p><strong>Categoria:</strong> @task.Category</p>
-                    <p><strong>Tags:</strong> @string.Join(", ", task.Tags)</p>
-                    <p><strong>Criada:</strong> @task.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                @if (!string.IsNullOrEmpty(task.Description))
+                {
+                    <p class="card-text">@task.Description</p>
+                }
+                <div class="row text-muted small">
+                    <div class="col-md-3">
+                        <strong>@task.Category</strong>
+                    </div>
+                    <div class="col-md-3">
+                        Tags: @string.Join(" ", task.Tags.Take(3).Select(t =>
+                                                    $"<span class='badge bg-secondary ms-1'>#{t}</span>"))
+                        @(task.Tags.Count > 3 ? "..." : "")
+                    </div>
+                    <div class="col-md-3">
+                        Criada: @task.CreatedAt.ToString("dd/MM/yy HH:mm")
+                    </div>
                     @if (task.DueDate.HasValue)
                     {
-                        <p><strong>Vence:</strong> @task.DueDate.Value.ToString("dd/MM/yyyy")</p>
+                        <div class="col-md-3">
+                            Vence: @task.DueDate.Value.ToString("dd/MM")
+                            @(task.DueDate.Value < DateTime.Now ?
+                                "<span class='badge bg-danger ms-1'>Atrasada</span>" : "")
+                        </div>
                     }
-                    <small class="text-muted">@task.Comments?.Count comentários</small>
+                </div>
+                @if (task.Comments?.Any() == true)
+                {
+                    <div class="mt-2">
+                        <small>@task.Comments.Count comentário@(task.Comments.Count > 1 ? "s" : "")</small>
+                    </div>
+                }
+            </div>
+            <div class="card-footer text-end">
+                <a href="/edit-task/@task.Id" class="btn btn-outline-primary btn-sm me-2">Editar</a>
+                <button class="btn btn-outline-danger btn-sm me-2" @onclick="() => ShowDeleteConfirm(task.Id)">Excluir</button>
+            </div>
+        </div>
+    }
+}
+@if (showDeleteConfirm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirmar exclusão</h5>
+                    <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">Cancelar</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">Excluir</button>
                 </div>
             </div>
-        }
-    }
+        </div>
+    </div>
+}
+
 
 @code {
-    private List<TaskItem>? tasks;
+    private List<TaskItem>? allTasks;
+    private List<TaskItem>? filteredTasks;
+    private int maxPriority = 100;
+    private string selectedCategory = "";
+    private string statusFilter = "";
+    private string tagFilter = "";
+
     protected override async Task OnInitializedAsync()
     {
-        tasks = await TaskService.GetAllTasksAsync();
+        allTasks = await TaskService.GetAllTasksAsync();
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        filteredTasks = allTasks?
+            .Where(t => t.Priority <= maxPriority)
+            .Where(t => string.IsNullOrEmpty(selectedCategory) || t.Category == selectedCategory)
+            .Where(t => string.IsNullOrEmpty(statusFilter) ||
+                       (statusFilter == "pending" && !t.IsCompleted) ||
+                       (statusFilter == "completed" && t.IsCompleted))
+            .Where(t => string.IsNullOrEmpty(tagFilter) ||
+                       t.Tags.Any(tag => tag.Contains(tagFilter, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(t => t.Priority)
+            .ThenBy(t => t.DueDate ?? DateTime.MaxValue)
+            .ToList();
     }
 
     private string GetPriorityEmoji(int priority) =>
@@ -52,5 +180,26 @@ else
 
     private string GetPriorityClass(int priority) =>
         priority switch { <= 2 => "bg-danger", <= 5 => "bg-warning", <= 10 => "bg-info", _ => "bg-success" };
+
+    private bool showDeleteConfirm = false;
+    private int taskToDeleteId = 0;
+
+    private void ShowDeleteConfirm(int id)
+    {
+        taskToDeleteId = id;
+        showDeleteConfirm = true;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        await TaskService.DeleteTaskAsync(taskToDeleteId);
+        showDeleteConfirm = false;
+        await OnInitializedAsync(); // Recarrega
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+    }
 
 }
