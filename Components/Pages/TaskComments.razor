@@ -1,0 +1,86 @@
+@using TaskManager.Models
+@using TaskManager.Services
+@inject CommentService CommentService
+@rendermode InteractiveServer
+
+<div class="border rounded p-3 mb-4 bg-light">
+    <h6 class="mb-3">
+        <i class="bi bi-chat-dots text-primary me-2"></i>
+        Comentários (@comments.Count)
+    </h6>
+
+    <!-- Formulário novo comentário -->
+    <div class="input-group mb-3">
+        <InputTextArea @bind-Value="newComment.Content" class="form-control"
+                       placeholder="Adicione um comentário à tarefa..." style="resize: vertical; min-height: 80px;" />
+        <button type="button" class="btn btn-success" style="min-width: 70px;" @onclick="AddNewComment"
+                disabled="@string.IsNullOrWhiteSpace(newComment.Content)">
+            <i class="bi bi-plus-lg me-1"></i>
+            Adicionar
+        </button>
+    </div>
+
+    <!-- Lista de comentários -->
+    @if (comments.Any())
+    {
+        @foreach (var comment in comments.OrderByDescending(c => c.CreatedAt))
+        {
+            <div class="comment-item p-3 mb-2 bg-white border rounded shadow-sm">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="fw-bold text-primary small me-2">@comment.AuthorUserId</span>
+                            <small class="text-muted">
+                                @comment.CreatedAt.ToString("dd/MM HH:mm")
+                            </small>
+                        </div>
+                        <div class="comment-content">@((MarkupString)comment.Content)</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger ms-2 p-1" title="Excluir comentário" type="button"
+                            @onclick="() => DeleteComment(comment.Id)" style="min-width: 32px; height: 32px;">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="text-center text-muted py-4">
+            <i class="bi bi-chat-square-text fs-1 opacity-50 mb-2 d-block"></i>
+            <p>Nenhum comentário ainda</p>
+            <small>Seja o primeiro a comentar!</small>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int TaskId { get; set; }
+    private List<Comment> comments = new();
+    private Comment newComment = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        comments = await CommentService.GetCommentsForTaskAsync(TaskId);
+    }
+
+    private async Task AddNewComment()
+    {
+        if (string.IsNullOrWhiteSpace(newComment.Content)) return;
+
+        newComment.TaskItemId = TaskId;
+        newComment.AuthorUserId = "Você"; // Futuro: usuário logado
+        newComment.CreatedAt = DateTime.Now;
+
+        await CommentService.AddCommentAsync(newComment);
+        newComment = new Comment(); // Limpa form
+        await OnInitializedAsync(); // Recarrega
+    }
+
+    private async Task DeleteComment(int commentId)
+    {
+        await CommentService.DeleteCommentAsync(commentId);
+        comments = await CommentService.GetCommentsForTaskAsync(TaskId);
+
+    }
+}

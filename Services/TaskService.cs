@@ -34,11 +34,11 @@ public class TaskService
     public async Task<TaskItem> CreateTaskAsync(TaskItem task)
     {
         _context.Tasks.Add(task);
-        await _context.SaveChangesAsync(); 
+        await _context.SaveChangesAsync();
         return task;
     }
 
-     public async Task UpdateTaskAsync(TaskItem task)
+    public async Task UpdateTaskAsync(TaskItem task)
     {
         _context.Tasks.Update(task);
         await _context.SaveChangesAsync();
@@ -53,5 +53,34 @@ public class TaskService
             await _context.SaveChangesAsync();
         }
     }
+
+    // Listar comentários de uma tarefa
+    public async Task<List<Comment>> GetCommentsAsync(int taskId)
+    {
+        return await _context.Comments
+            .Where(c => c.TaskItemId == taskId)
+            .OrderByDescending(c => c.CreatedAt)
+            .ToListAsync();
+    }
+
+    // Adicionar comentário
+    public async Task<Comment> AddCommentAsync(Comment comment)
+    {
+        _context.Comments.Add(comment);
+        await _context.SaveChangesAsync();
+        return comment;
+    }
+
+    // Deletar comentário
+    public async Task DeleteCommentAsync(int commentId)
+    {
+        var comment = await _context.Comments.FindAsync(commentId);
+        if (comment != null)
+        {
+            _context.Comments.Remove(comment);
+            await _context.SaveChangesAsync();
+        }
+    }
+
 
 }
