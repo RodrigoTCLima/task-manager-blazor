@@ -90,5 +90,14 @@ public class TaskService
         }
     }
 
+    public async Task ToggleCompleteAsync(int id)
+{
+    var task = await _context.Tasks.FindAsync(id);
+    if (task != null)
+    {
+        task.IsCompleted = !task.IsCompleted;
+        await _context.SaveChangesAsync();
+    }
+}
 
 }
