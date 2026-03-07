@@ -1,7 +1,11 @@
 @page "/tasks"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Mvc
 @using TaskManager.Services
 @using TaskManager.Models
 @inject TaskService TaskService
+@inject AuthenticationStateProvider AuthStateProvider
+
 @rendermode InteractiveServer
 
 <PageTitle>Tarefas</PageTitle>
@@ -95,7 +99,7 @@ else
                     </div>
                     <div class="col-md-3">
                         Tags: @string.Join(" ", task.Tags.Take(3).Select(t =>
-                                                                            $"<span class='badge bg-secondary ms-1'>#{t}</span>"))
+                                                                                                    $"<span class='badge bg-secondary ms-1'>#{t}</span>"))
                         @(task.Tags.Count > 3 ? "..." : "")
                     </div>
                     <div class="col-md-3">
@@ -161,7 +165,10 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        allTasks = await TaskService.GetAllTasksAsync();
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.Identity?.Name;
+
+        allTasks = await TaskService.GetAllTasksAsync(userId);
         ApplyFilters();
     }
 

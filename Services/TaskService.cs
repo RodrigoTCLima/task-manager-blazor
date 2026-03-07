@@ -15,20 +15,28 @@ public class TaskService
     {
         _context = context;
     }
-    public async Task<List<TaskItem>> GetAllTasksAsync()
+    public async Task<List<TaskItem>> GetAllTasksAsync(string? userId = null)
     {
-        return await _context.Tasks
-        .Include(t => t.Comments)
-        .OrderByDescending(t => t.Priority)
-        .ThenBy(t => t.CreatedAt)
-        .ToListAsync();
+        IQueryable<TaskItem> query = _context.Tasks.Include(t => t.Comments);
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            query = query.Where(t => t.AuthorUserId == userId);
+        }
+
+        return await query
+            .OrderBy(t => t.Priority)
+            .ThenBy(t => t.CreatedAt)
+            .ToListAsync();
     }
 
-    public async Task<TaskItem?> GetTaskByIdAsync(int id)
+
+    public async Task<TaskItem?> GetTaskByIdAsync(int id, string? userId = null)
     {
+        var query = _context.Tasks.Include(t => t.Comments).Where(t => t.Id == id);
         return await _context.Tasks
-        .Include(t => t.Comments)
-        .FirstOrDefaultAsync(t => t.Id == id);
+    .Include(t => t.Comments)
+    .FirstOrDefaultAsync(t => t.Id == id);
     }
 
     public async Task<TaskItem> CreateTaskAsync(TaskItem task)
