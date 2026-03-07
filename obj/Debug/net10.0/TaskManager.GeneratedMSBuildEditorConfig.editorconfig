@@ -34,8 +34,16 @@ build_property.EnableCodeStyleSeverity =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBcHAucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[E:/TaskManager/TaskManager/Components/Layout/TopNav.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcVG9wTmF2LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
 [E:/TaskManager/TaskManager/Components/Pages/AddEditTask.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZGRFZGl0VGFzay5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/TaskManager/TaskManager/Components/Pages/Home.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
 [E:/TaskManager/TaskManager/Components/Pages/NotFound.razor]
@@ -48,6 +56,10 @@ build_metadata.AdditionalFiles.CssScope =
 
 [E:/TaskManager/TaskManager/Components/Pages/Tasks.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xUYXNrcy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[E:/TaskManager/TaskManager/Components/RedirectToLogin.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xSZWRpcmVjdFRvTG9naW4ucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
 [E:/TaskManager/TaskManager/Components/Routes.razor]

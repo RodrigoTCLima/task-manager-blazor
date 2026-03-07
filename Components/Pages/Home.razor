@@ -1,0 +1,35 @@
+@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<AuthorizeView>
+    <Authorized>
+        <p>Redirecionando...</p>
+    </Authorized>
+    <NotAuthorized>
+        <div class="text-center py-5">
+            <h1 class="display-4 mb-4">✅ TaskManager</h1>
+            <p class="lead mb-4">Organize suas tarefas com eficiência</p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="/Identity/Account/Register" class="btn btn-primary btn-lg">Criar Conta</a>
+                <a href="/Identity/Account/Login" class="btn btn-outline-primary btn-lg">Entrar</a>
+            </div>
+        </div>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                Navigation.NavigateTo("/tasks");
+            }
+        }
+    }
+}
