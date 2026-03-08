@@ -1,0 +1,204 @@
+@page "/dashboard"
+@attribute [Authorize]
+@using TaskManager.Models
+@using TaskManager.Services
+@inject TaskService TaskService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Dashboard</PageTitle>
+
+<h3 class="mb-4">📊 Dashboard</h3>
+
+@if (allTasks == null)
+{
+    <p>Carregando...</p>
+}
+else
+{
+    <!-- Cards de estatísticas -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card text-white bg-primary h-100">
+                <div class="card-body text-center">
+                    <div style="font-size:2rem">📋</div>
+                    <h2 class="card-title">@allTasks.Count</h2>
+                    <p class="card-text">Total de Tarefas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card text-white bg-success h-100">
+                <div class="card-body text-center">
+                    <div style="font-size:2rem">✅</div>
+                    <h2 class="card-title">@completed</h2>
+                    <p class="card-text">Concluídas</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card text-white bg-warning h-100">
+                <div class="card-body text-center">
+                    <div style="font-size:2rem">⏳</div>
+                    <h2 class="card-title">@pending</h2>
+                    <p class="card-text">Pendentes</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card text-white bg-danger h-100">
+                <div class="card-body text-center">
+                    <div style="font-size:2rem">🔥</div>
+                    <h2 class="card-title">@overdue</h2>
+                    <p class="card-text">Atrasadas</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Segunda linha: Vencendo hoje + Por categoria -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold">📅 Vencendo Hoje</div>
+                <div class="card-body">
+                    @if (!dueTodayTasks.Any())
+                    {
+                        <p class="text-muted">Nenhuma tarefa vence hoje 🎉</p>
+                    }
+                    else
+                    {
+                        <ul class="list-group list-group-flush">
+                            @foreach (var t in dueTodayTasks)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <a href="/task/@t.Id"
+                                           class="text-decoration-none @(t.IsCompleted ? "text-decoration-line-through text-muted" : "")">
+                                        @t.Title
+                                    </a>
+
+                                    <span class="badge bg-secondary">@t.Category</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold">🗂️ Por Categoria</div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var cat in byCategory)
+                        {
+                            var pct = allTasks.Count > 0 ? (cat.Value * 100 / allTasks.Count) : 0;
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span>@cat.Key</span>
+                                    <span class="text-muted">@cat.Value tarefa(s)</span>
+                                </div>
+                                <div class="progress" style="height:6px">
+                                    <div class="progress-bar" style="width:@pct%"></div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terceira linha: Por prioridade + Tarefas recentes -->
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">🎯 Por Prioridade</div>
+                <div class="card-body">
+                    @foreach (var pri in byPriority)
+                    {
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Prioridade @pri.Key</span>
+                            <span class="badge bg-primary rounded-pill">@pri.Value</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header fw-bold">🕐 Tarefas Recentes</div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        @foreach (var t in recentTasks)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <a href="/task/@t.Id"
+                                           class="text-decoration-none @(t.IsCompleted ? "text-decoration-line-through text-muted" : "")">
+                                        @t.Title
+                                    </a>
+
+                                    <small class="text-muted d-block">@t.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                </div>
+                                @if (t.IsCompleted)
+                                {
+                                    <span class="badge bg-success">Concluída</span>
+                                }
+                                else if (t.DueDate < DateTime.UtcNow)
+                                {
+                                    <span class="badge bg-danger">Atrasada</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">Pendente</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TaskItem>? allTasks;
+    private int completed, pending, overdue;
+    private List<TaskItem> dueTodayTasks = new();
+    private List<TaskItem> recentTasks = new();
+    private Dictionary<string, int> byCategory = new();
+    private Dictionary<int, int> byPriority = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = authState.User.Identity?.Name;
+        allTasks = await TaskService.GetAllTasksAsync(userId);
+
+        var today = DateTime.UtcNow.Date;
+
+        completed = allTasks.Count(t => t.IsCompleted);
+        pending = allTasks.Count(t => !t.IsCompleted);
+        overdue = allTasks.Count(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate.Value < DateTime.UtcNow);
+
+        dueTodayTasks = allTasks
+            .Where(t => t.DueDate.HasValue && t.DueDate.Value.Date == today)
+            .ToList();
+
+        recentTasks = allTasks
+            .OrderByDescending(t => t.CreatedAt)
+            .Take(5)
+            .ToList();
+
+        byCategory = allTasks
+            .GroupBy(t => t.Category)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        byPriority = allTasks
+            .GroupBy(t => t.Priority)
+            .OrderBy(g => g.Key)
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+}
