@@ -96,9 +96,47 @@
     </div>
 
     <div class="mb-3">
-        <label>Dependências (IDs de tarefas, separadas por vírgula)</label>
-        <InputText @bind-Value="@dependenciesInput" class="form-control" placeholder="ex: 1,3,5" />
+        <label>Dependências</label>
+        @if (availableTasks.Any())
+        {
+            <input type="text"               class="form-control form-control-sm mb-2"               placeholder="🔍 Filtrar por nome ou #número..."
+                   @bind="depFilter"               @bind:event="oninput" />
+
+            <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                @{
+                    var filtered = string.IsNullOrWhiteSpace(depFilter)
+                        ? availableTasks
+                        : availableTasks.Where(t =>
+                            t.Title.Contains(depFilter, StringComparison.OrdinalIgnoreCase) ||
+                            t.Id.ToString().Contains(depFilter)).ToList();
+                }
+                @if (!filtered.Any())
+                {
+                    <p class="text-muted small mb-0">Nenhuma tarefa encontrada.</p>
+                }
+                else
+                {
+                    @foreach (var t in filtered)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="dep_@t.Id"
+                                   checked="@(taskModel.DependencyOnTaskIds?.Contains(t.Id) ?? false)"
+                                   @onchange="() => ToggleDependency(t.Id)" />
+                            <label class="form-check-label" for="dep_@t.Id">
+                                <span class="text-muted me-1">#@t.Id</span>@t.Title
+                            </label>
+                        </div>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">Nenhuma tarefa pendente disponível.</p>
+        }
     </div>
+
+
 
     <TaskComments TaskId="@(TaskId ?? 0)" />
 
@@ -112,22 +150,28 @@
     private TaskItem? editingTask;
     private TaskItem taskModel = new();
     private string tagsInput = "";
-    private string dependenciesInput = "";
     private string? currentUserId;
+    private List<TaskItem> availableTasks = new();
+    private string depFilter = "";
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         currentUserId = authState.User.Identity?.Name;
 
+        var all = await TaskService.GetAllTasksAsync(currentUserId);
+
         if (TaskId.HasValue)
         {
             editingTask = await TaskService.GetTaskByIdAsync(TaskId.Value);
+            availableTasks = all
+                .Where(t => !t.IsCompleted && t.Id != TaskId.Value)
+                .ToList();
+
             if (editingTask != null)
             {
                 taskModel = editingTask;
                 tagsInput = string.Join(",", taskModel.Tags);
-                dependenciesInput = string.Join(",", taskModel.DependencyOnTaskIds ?? new List<int>());
             }
             else
             {
@@ -136,6 +180,7 @@
         }
         else
         {
+            availableTasks = all.Where(t => !t.IsCompleted).ToList();
             taskModel.CreatedAt = DateTime.Now;
             taskModel.AuthorUserId = currentUserId;
         }
@@ -146,13 +191,6 @@
         taskModel.Tags = tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
 
-        // Processar dependências (IDs numéricos)
-        if (!string.IsNullOrEmpty(dependenciesInput))
-        {
-            taskModel.DependencyOnTaskIds = dependenciesInput.Split(',')
-                .Select(id => int.TryParse(id.Trim(), out int taskId) ? taskId : 0)
-                .Where(id => id > 0).ToList();
-        }
 
         if (TaskId.HasValue && editingTask != null)
         {
@@ -165,6 +203,15 @@
         }
 
         Navigation.NavigateTo("/tasks");
+    }
+
+    private void ToggleDependency(int id)
+    {
+        taskModel.DependencyOnTaskIds ??= new List<int>();
+        if (taskModel.DependencyOnTaskIds.Contains(id))
+            taskModel.DependencyOnTaskIds.Remove(id);
+        else
+            taskModel.DependencyOnTaskIds.Add(id);
     }
 
     private void Cancel()

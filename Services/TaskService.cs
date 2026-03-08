@@ -91,13 +91,39 @@ public class TaskService
     }
 
     public async Task ToggleCompleteAsync(int id)
-{
-    var task = await _context.Tasks.FindAsync(id);
-    if (task != null)
     {
-        task.IsCompleted = !task.IsCompleted;
-        await _context.SaveChangesAsync();
+        var task = await _context.Tasks.FindAsync(id);
+        if (task != null)
+        {
+            task.IsCompleted = !task.IsCompleted;
+            await _context.SaveChangesAsync();
+        }
     }
-}
+
+    public async Task<bool> HasPendingDependenciesAsync(int taskId)
+    {
+        var task = await _context.Tasks
+            .FirstOrDefaultAsync(t => t.Id == taskId);
+
+        if (task?.DependencyOnTaskIds == null || !task.DependencyOnTaskIds.Any())
+            return false;
+
+        return await _context.Tasks
+            .AnyAsync(t => task.DependencyOnTaskIds.Contains(t.Id) && !t.IsCompleted);
+    }
+
+    public async Task<List<TaskItem>> GetDependenciesAsync(int taskId)
+    {
+        var task = await _context.Tasks
+            .FirstOrDefaultAsync(t => t.Id == taskId);
+
+        if (task?.DependencyOnTaskIds == null || !task.DependencyOnTaskIds.Any())
+            return new List<TaskItem>();
+
+        return await _context.Tasks
+            .Where(t => task.DependencyOnTaskIds.Contains(t.Id))
+            .ToListAsync();
+    }
+
 
 }

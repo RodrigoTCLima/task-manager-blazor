@@ -20,15 +20,25 @@ else
         <!-- Cabeçalho -->
         <div class="d-flex justify-content-between align-items-start mb-3">
             <h3 class="@(task.IsCompleted ? "text-decoration-line-through text-muted" : "")">
-                @task.Title
+                <span class="text-muted me-2 fs-5">#@task.Id</span>@task.Title
             </h3>
+
             <span class="badge fs-6 @GetPriorityClass(task.Priority)">
                 @GetPriorityEmoji(task.Priority) Prioridade @task.Priority
             </span>
         </div>
 
         <!-- Status -->
-        <div class="mb-3">
+        <div class="mb-3 d-flex align-items-center gap-3">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="completeMain" checked="@task.IsCompleted"
+                       disabled="@hasPendingDeps" @onchange="ToggleMainTask" style="width:1.2rem;height:1.2rem;" />
+                <label class="form-check-label fw-bold" for="completeMain">Concluída</label>
+            </div>
+            @if (hasPendingDeps)
+            {
+                <span class="text-warning small">⚠️ Dependências pendentes</span>
+            }
             @if (task.IsCompleted)
             {
                 <span class="badge bg-success">✅ Concluída</span>
@@ -43,6 +53,7 @@ else
             }
             <span class="badge bg-secondary ms-2">🗂️ @task.Category</span>
         </div>
+
 
         <!-- Descrição -->
         @if (!string.IsNullOrWhiteSpace(task.Description))
@@ -124,6 +135,35 @@ else
                     }
                 </div>
             </div>
+            @if (dependencies.Any())
+            {
+                <div class="card mb-3">
+                    <div class="card-header fw-bold">🔗 Depende de</div>
+                    <ul class="list-group list-group-flush">
+                        @foreach (var dep in dependencies)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="checkbox" class="form-check-input mt-0" checked="@dep.IsCompleted"
+                                           @onchange="() => ToggleDependencyTask(dep.Id)" style="width:1.1rem;height:1.1rem;" />
+                                    <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")">
+                                        <span class="text-muted me-1 small">#@dep.Id</span>@dep.Title
+                                    </a>
+                                </div>
+                                @if (dep.IsCompleted)
+                                {
+                                    <span class="badge bg-success">✅ Concluída</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark">⏳ Pendente</span>
+                                }
+                            </li>
+
+                        }
+                    </ul>
+                </div>
+            }
 
             <!-- Botões -->
             <div class="d-flex gap-2 mt-4">
@@ -137,27 +177,46 @@ else
 @code {
     [Parameter] public int Id { get; set; }
     private TaskItem? task;
+    private List<TaskItem> dependencies = new();
+    private bool hasPendingDeps;
 
     protected override async Task OnInitializedAsync()
     {
+        task = await TaskService.GetTaskByIdAsync(Id);
+        dependencies = await TaskService.GetDependenciesAsync(Id);
+        hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
+    }
+
+    private async Task ToggleMainTask()
+    {
+        await TaskService.ToggleCompleteAsync(task!.Id);
+        task = await TaskService.GetTaskByIdAsync(Id);
+        hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
+    }
+
+    private async Task ToggleDependencyTask(int depId)
+    {
+        await TaskService.ToggleCompleteAsync(depId);
+        dependencies = await TaskService.GetDependenciesAsync(Id);
+        hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
         task = await TaskService.GetTaskByIdAsync(Id);
     }
 
     private string GetPriorityClass(int priority) => priority switch
     {
-        <= 2 => "bg-danger",
-        <= 5 => "bg-warning text-dark",
+        <= 2  => "bg-danger",
+        <= 5  => "bg-warning text-dark",
         <= 10 => "bg-info text-dark",
         <= 20 => "bg-success",
-        _ => "bg-secondary"
+        _     => "bg-secondary"
     };
 
     private string GetPriorityEmoji(int priority) => priority switch
     {
-        <= 2 => "🔴",
-        <= 5 => "🟠",
+        <= 2  => "🔴",
+        <= 5  => "🟠",
         <= 10 => "🟡",
         <= 20 => "🟢",
-        _ => "⚪"
+        _     => "⚪"
     };
 }
