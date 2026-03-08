@@ -96,11 +96,21 @@
     </div>
 
     <div class="mb-3">
-        <label>Dependências</label>
+        <label class="fw-bold">Dependências
+            @if (taskModel.DependencyOnTaskIds?.Any() == true)
+            {
+                <span class="badge bg-primary ms-2">@taskModel.DependencyOnTaskIds.Count selecionada(s)</span>
+            }
+        </label>
+        @if (priorityAdjustedMsg != null)
+        {
+            <div class="alert alert-info py-1 px-2 mb-2 small">@priorityAdjustedMsg</div>
+        }
+
         @if (availableTasks.Any())
         {
-            <input type="text"               class="form-control form-control-sm mb-2"               placeholder="🔍 Filtrar por nome ou #número..."
-                   @bind="depFilter"               @bind:event="oninput" />
+            <input type="text" class="form-control form-control-sm mb-2" placeholder="🔍 Filtrar por nome ou #número..."
+                   @bind="depFilter" @bind:event="oninput" />
 
             <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
                 @{
@@ -116,17 +126,39 @@
                 }
                 else
                 {
-                    @foreach (var t in filtered)
-                    {
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="dep_@t.Id"
-                                   checked="@(taskModel.DependencyOnTaskIds?.Contains(t.Id) ?? false)"
-                                   @onchange="() => ToggleDependency(t.Id)" />
-                            <label class="form-check-label" for="dep_@t.Id">
-                                <span class="text-muted me-1">#@t.Id</span>@t.Title
-                            </label>
-                        </div>
-                    }
+                    <div class="alert alert-info small mb-2">
+    <strong>Debug:</strong> forbiddenIds = [@string.Join(", ", forbiddenIds)]
+    | taskModel.Id = @taskModel.Id
+    | availableTasks = @availableTasks.Count
+    | filtered = @(string.IsNullOrWhiteSpace(depFilter) ? availableTasks.Count : availableTasks.Where(t => t.Title.Contains(depFilter, StringComparison.OrdinalIgnoreCase) || t.Id.ToString().Contains(depFilter)).Count())
+</div>
+
+@foreach (var t in filtered)
+{
+    @if (!forbiddenIds.Contains(t.Id))
+    {
+        <div class="form-check d-flex align-items-center gap-2">
+            <input class="form-check-input" type="checkbox" id="dep_@t.Id"
+       checked="@(taskModel.DependencyOnTaskIds != null && taskModel.DependencyOnTaskIds.Contains(t.Id))"
+       @onchange="() => ToggleDependency(t.Id)" />
+
+            <label class="form-check-label flex-grow-1" for="dep_@t.Id"
+                   title="@t.Description">
+                <span class="text-muted me-1">#@t.Id</span>@t.Title
+                @if (t.IsCompleted)
+                {
+                    <span class="badge bg-success ms-1 small">✅</span>
+                }
+            </label>
+            <span class="badge @GetPriorityBadgeClass(t.Priority) ms-auto"
+                  title="@t.Title — @t.Description">
+                @GetPriorityEmoji(t.Priority) @t.Priority
+            </span>
+            <span class="badge bg-secondary" title="@t.Category">@t.Category</span>
+        </div>
+    }
+}
+
                 }
             </div>
         }
@@ -136,8 +168,6 @@
         }
     </div>
 
-
-
     <TaskComments TaskId="@(TaskId ?? 0)" />
 
     <div class="d-flex gap-2">
@@ -145,6 +175,7 @@
         <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancelar</button>
     </div>
 </EditForm>
+
 @code {
     [Parameter] public int? TaskId { get; set; }
     private TaskItem? editingTask;
@@ -153,48 +184,83 @@
     private string? currentUserId;
     private List<TaskItem> availableTasks = new();
     private string depFilter = "";
+    private string? priorityAdjustedMsg;
 
-    protected override async Task OnInitializedAsync()
+    private HashSet<int> forbiddenIds = new();
+
+
+protected override async Task OnInitializedAsync()
+{
+    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+    currentUserId = authState.User.Identity?.Name;
+
+    var allMine = await TaskService.GetAllTasksAsync(currentUserId);
+
+    if (TaskId.HasValue)
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        currentUserId = authState.User.Identity?.Name;
+        editingTask = await TaskService.GetTaskByIdAsync(TaskId.Value);
 
-        var all = await TaskService.GetAllTasksAsync(currentUserId);
-
-        if (TaskId.HasValue)
+        if (editingTask != null)
         {
-            editingTask = await TaskService.GetTaskByIdAsync(TaskId.Value);
-            availableTasks = all
-                .Where(t => !t.IsCompleted && t.Id != TaskId.Value)
-                .ToList();
+            taskModel = new TaskItem
+            {
+                Id = editingTask.Id,
+                Title = editingTask.Title,
+                Description = editingTask.Description,
+                Priority = editingTask.Priority,
+                Category = editingTask.Category,
+                DueDate = editingTask.DueDate,
+                HasAlarm = editingTask.HasAlarm,
+                AlarmTime = editingTask.AlarmTime,
+                IsRecurrent = editingTask.IsRecurrent,
+                RecurrencePattern = editingTask.RecurrencePattern,
+                IsCompleted = editingTask.IsCompleted,
+                Tags = new List<string>(editingTask.Tags ?? new()),
+                DependencyOnTaskIds = new List<int>(editingTask.DependencyOnTaskIds ?? new()),
+                AuthorUserId = editingTask.AuthorUserId,
+                CreatedAt = editingTask.CreatedAt
+            };
+            tagsInput = string.Join(",", taskModel.Tags);
 
-            if (editingTask != null)
-            {
-                taskModel = editingTask;
-                tagsInput = string.Join(",", taskModel.Tags);
-            }
-            else
-            {
-                Navigation.NavigateTo("/tasks");
-            }
+            var selectedIds = taskModel.DependencyOnTaskIds;
+            // Tarefas do usuário não concluídas + as já selecionadas (mesmo concluídas)
+            availableTasks = allMine
+                .Where(t => t.Id != TaskId.Value && (!t.IsCompleted || selectedIds.Contains(t.Id)))
+                .ToList();
         }
         else
         {
-            availableTasks = all.Where(t => !t.IsCompleted).ToList();
-            taskModel.CreatedAt = DateTime.Now;
-            taskModel.AuthorUserId = currentUserId;
+            Navigation.NavigateTo("/tasks");
         }
     }
+    else
+    {
+        availableTasks = allMine.Where(t => !t.IsCompleted).ToList();
+        taskModel.CreatedAt = DateTime.Now;
+        taskModel.AuthorUserId = currentUserId;
+    }
+
+    // Calcular forbidden apenas com tarefas do próprio usuário
+    if (taskModel.Id > 0)
+    {
+        forbiddenIds = await TaskService.GetDependencyChainAsync(taskModel.Id);
+        forbiddenIds.Add(taskModel.Id);
+    }
+    else
+    {
+        forbiddenIds = new HashSet<int>();
+    }
+}
+
+
     private async Task HandleValidSubmit()
     {
-        // Processar tags
         taskModel.Tags = tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
 
-
         if (TaskId.HasValue && editingTask != null)
         {
-            taskModel.Id = editingTask.Id; // Preserva ID
+            taskModel.Id = editingTask.Id;
             await TaskService.UpdateTaskAsync(taskModel);
         }
         else
@@ -207,18 +273,41 @@
 
     private void ToggleDependency(int id)
     {
+        priorityAdjustedMsg = null;
         taskModel.DependencyOnTaskIds ??= new List<int>();
+
         if (taskModel.DependencyOnTaskIds.Contains(id))
+        {
             taskModel.DependencyOnTaskIds.Remove(id);
-        else
-            taskModel.DependencyOnTaskIds.Add(id);
+            return;
+        }
+
+        taskModel.DependencyOnTaskIds.Add(id);
+
+        // Ajuste automático de prioridade
+        var dep = availableTasks.FirstOrDefault(t => t.Id == id);
+        if (dep != null && taskModel.Priority <= dep.Priority)
+        {
+            var oldPriority = taskModel.Priority;
+            taskModel.Priority = dep.Priority + 1;
+            priorityAdjustedMsg = $"ℹ️ Prioridade ajustada de {oldPriority} para {taskModel.Priority} (deve ser menor urgente que #{id} com prioridade {dep.Priority}).";
+        }
     }
 
-    private void Cancel()
-    {
-        Navigation.NavigateTo("/tasks");
-    }
+
+    private void Cancel() => Navigation.NavigateTo("/tasks");
 
     private string GetPriorityEmoji(int priority) =>
         priority switch { <= 2 => "🔴", <= 5 => "🟠", <= 10 => "🟡", <= 20 => "🟢", _ => "⚪" };
+
+    private string GetPriorityBadgeClass(int priority) =>
+        priority switch
+        {
+            <= 2 => "bg-danger",
+            <= 5 => "bg-warning text-dark",
+            <= 10 => "bg-info text-dark",
+            <= 20 =>
+"bg-success",
+            _ => "bg-secondary"
+        };
 }

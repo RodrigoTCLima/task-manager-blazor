@@ -29,15 +29,28 @@ else
         </div>
 
         <!-- Status -->
-        <div class="mb-3 d-flex align-items-center gap-3">
+        <div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
             <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" id="completeMain" checked="@task.IsCompleted"
-                       disabled="@hasPendingDeps" @onchange="ToggleMainTask" style="width:1.2rem;height:1.2rem;" />
-                <label class="form-check-label fw-bold" for="completeMain">Concluída</label>
+                @if (hasPendingDeps)
+                {
+                    <span style="font-size:1.2rem; cursor:not-allowed;" title="Conclua as dependências primeiro">🔒</span>
+                    <label class="form-check-label fw-bold ms-1 text-warning">Bloqueada</label>
+                }
+                else
+                {
+                    <input class="form-check-input" type="checkbox" id="completeMain" checked="@task.IsCompleted"
+                           @onchange="ToggleMainTask" style="width:1.2rem;height:1.2rem;" />
+                    <label class="form-check-label fw-bold ms-1" for="completeMain">Concluída</label>
+                }
             </div>
+
             @if (hasPendingDeps)
             {
-                <span class="text-warning small">⚠️ Dependências pendentes</span>
+                <span class="text-warning small">⚠️ Conclua as dependências primeiro</span>
+            }
+            @if (unlockedMsg != null)
+            {
+                <span class="badge bg-success">@unlockedMsg</span>
             }
             @if (task.IsCompleted)
             {
@@ -51,8 +64,9 @@ else
             {
                 <span class="badge bg-warning text-dark">⏳ Pendente</span>
             }
-            <span class="badge bg-secondary ms-2">🗂️ @task.Category</span>
+            <span class="badge bg-secondary">🗂️ @task.Category</span>
         </div>
+
 
 
         <!-- Descrição -->
@@ -138,7 +152,20 @@ else
             @if (dependencies.Any())
             {
                 <div class="card mb-3">
-                    <div class="card-header fw-bold">🔗 Depende de</div>
+                    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+                        <span>🔗 Depende de</span>
+                        <span class="small text-muted">
+                            @dependencies.Count(d => d.IsCompleted)/@dependencies.Count concluídas
+                        </span>
+                    </div>
+                    @{
+                        var total = dependencies.Count;
+                        var done = dependencies.Count(d => d.IsCompleted);
+                        var pct = total > 0 ? (done * 100 / total) : 0;
+                    }
+                    <div class="progress" style="height: 6px; border-radius: 0;">
+                        <div class="progress-bar bg-success" style="width:@pct%"></div>
+                    </div>
                     <ul class="list-group list-group-flush">
                         @foreach (var dep in dependencies)
                         {
@@ -146,24 +173,36 @@ else
                                 <div class="d-flex align-items-center gap-2">
                                     <input type="checkbox" class="form-check-input mt-0" checked="@dep.IsCompleted"
                                            @onchange="() => ToggleDependencyTask(dep.Id)" style="width:1.1rem;height:1.1rem;" />
-                                    <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")">
-                                        <span class="text-muted me-1 small">#@dep.Id</span>@dep.Title
+                                    @{
+                                        var depTooltip = dep.Title + (!string.IsNullOrWhiteSpace(dep.Description) ? " — " + dep.Description
+                                        : "");
+                                        var depLinkTooltip = !string.IsNullOrWhiteSpace(dep.Description) ? dep.Description : dep.Title;
+                                    }
+                                    <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")"
+                                           title="@depLinkTooltip">
+                                        <span class="badge bg-secondary me-1" title="@depTooltip">
+                                            #@dep.Id
+                                        </span>@dep.Title
                                     </a>
-                                </div>
-                                @if (dep.IsCompleted)
-                                {
-                                    <span class="badge bg-success">✅ Concluída</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-warning text-dark">⏳ Pendente</span>
-                                }
-                            </li>
 
+                                </div>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="badge @GetPriorityClass(dep.Priority)">@GetPriorityEmoji(dep.Priority)</span>
+                                    @if (dep.IsCompleted)
+                                    {
+                                        <span class="badge bg-success">✅</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">⏳</span>
+                                    }
+                                </div>
+                            </li>
                         }
                     </ul>
                 </div>
             }
+
 
             <!-- Botões -->
             <div class="d-flex gap-2 mt-4">
@@ -179,6 +218,7 @@ else
     private TaskItem? task;
     private List<TaskItem> dependencies = new();
     private bool hasPendingDeps;
+    private string? unlockedMsg;
 
     protected override async Task OnInitializedAsync()
     {
@@ -198,25 +238,32 @@ else
     {
         await TaskService.ToggleCompleteAsync(depId);
         dependencies = await TaskService.GetDependenciesAsync(Id);
+        var wasBlocked = hasPendingDeps;
         hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
         task = await TaskService.GetTaskByIdAsync(Id);
+
+        // Aviso de desbloqueio
+        if (wasBlocked && !hasPendingDeps)
+            unlockedMsg = "🔓 Tarefa desbloqueada! Todas as dependências concluídas.";
+        else
+            unlockedMsg = null;
     }
 
     private string GetPriorityClass(int priority) => priority switch
     {
-        <= 2  => "bg-danger",
-        <= 5  => "bg-warning text-dark",
+        <= 2 => "bg-danger",
+        <= 5 => "bg-warning text-dark",
         <= 10 => "bg-info text-dark",
         <= 20 => "bg-success",
-        _     => "bg-secondary"
+        _ => "bg-secondary"
     };
 
     private string GetPriorityEmoji(int priority) => priority switch
     {
-        <= 2  => "🔴",
-        <= 5  => "🟠",
+        <= 2 => "🔴",
+        <= 5 => "🟠",
         <= 10 => "🟡",
         <= 20 => "🟢",
-        _     => "⚪"
+        _ => "⚪"
     };
 }

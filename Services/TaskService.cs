@@ -17,12 +17,12 @@ public class TaskService
     }
     public async Task<List<TaskItem>> GetAllTasksAsync(string? userId = null)
     {
-        IQueryable<TaskItem> query = _context.Tasks.Include(t => t.Comments);
+        IQueryable<TaskItem> query = _context.Tasks
+            .Include(t => t.Comments)
+            .AsNoTracking();
 
         if (!string.IsNullOrEmpty(userId))
-        {
             query = query.Where(t => t.AuthorUserId == userId);
-        }
 
         return await query
             .OrderBy(t => t.Priority)
@@ -31,13 +31,15 @@ public class TaskService
     }
 
 
+
     public async Task<TaskItem?> GetTaskByIdAsync(int id, string? userId = null)
     {
-        var query = _context.Tasks.Include(t => t.Comments).Where(t => t.Id == id);
         return await _context.Tasks
-    .Include(t => t.Comments)
-    .FirstOrDefaultAsync(t => t.Id == id);
+            .Include(t => t.Comments)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == id);
     }
+
 
     public async Task<TaskItem> CreateTaskAsync(TaskItem task)
     {
@@ -48,9 +50,30 @@ public class TaskService
 
     public async Task UpdateTaskAsync(TaskItem task)
     {
-        _context.Tasks.Update(task);
+        var existing = await _context.Tasks.FindAsync(task.Id);
+        if (existing == null) return;
+
+        // Copiar valores para o objeto já rastreado
+        existing.Title = task.Title;
+        existing.Description = task.Description;
+        existing.Priority = task.Priority;
+        existing.Category = task.Category;
+        existing.DueDate = task.DueDate;
+        existing.HasAlarm = task.HasAlarm;
+        existing.AlarmTime = task.AlarmTime;
+        existing.IsRecurrent = task.IsRecurrent;
+        existing.RecurrencePattern = task.RecurrencePattern;
+        existing.IsCompleted = task.IsCompleted;
+        existing.Tags = task.Tags;
+        existing.DependencyOnTaskIds = task.DependencyOnTaskIds;
+        existing.AssignedToUserId = task.AssignedToUserId;
+        existing.NeedsReview = task.NeedsReview;
+        existing.ReviewByUserId = task.ReviewByUserId;
+        existing.ReviewedByUserId = task.ReviewedByUserId;
+
         await _context.SaveChangesAsync();
     }
+
 
     public async Task DeleteTaskAsync(int id)
     {
@@ -124,6 +147,31 @@ public class TaskService
             .Where(t => task.DependencyOnTaskIds.Contains(t.Id))
             .ToListAsync();
     }
+
+
+    public async Task<HashSet<int>> GetDependencyChainAsync(int taskId)
+    {
+        var allTasks = await _context.Tasks.AsNoTracking().ToListAsync();
+        var forbidden = new HashSet<int>();
+        BuildAncestorChain(taskId, allTasks, forbidden);
+        return forbidden;
+    }
+
+    // Percorre quem depende de taskId (ascendentes) — evita ciclo
+    private void BuildAncestorChain(int taskId, List<TaskItem> allTasks, HashSet<int> visited)
+    {
+        // Encontrar tarefas que têm taskId como dependência
+        var dependents = allTasks
+            .Where(t => t.DependencyOnTaskIds != null && t.DependencyOnTaskIds.Contains(taskId))
+            .ToList();
+
+        foreach (var dep in dependents)
+        {
+            if (visited.Add(dep.Id))
+                BuildAncestorChain(dep.Id, allTasks, visited);
+        }
+    }
+
 
 
 }
