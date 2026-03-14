@@ -23,10 +23,12 @@ public class OrganizationService
         return await _context.OrganizationMembers
             .Where(m => m.UserId == userId)
             .Include(m => m.Organization)
+                .ThenInclude(o => o.Members)
             .Select(m => m.Organization)
             .AsNoTracking()
             .ToListAsync();
     }
+
 
     public async Task<Organization?> GetOrganizationByIdAsync(int id)
     {
