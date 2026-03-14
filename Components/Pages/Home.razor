@@ -9,12 +9,17 @@
         <p>Redirecionando...</p>
     </Authorized>
     <NotAuthorized>
-        <div class="text-center py-5">
-            <h1 class="display-4 mb-4">✅ TaskManager</h1>
-            <p class="lead mb-4">Organize suas tarefas com eficiência</p>
-            <div class="d-flex justify-content-center gap-3">
-                <a href="/Identity/Account/Register" class="btn btn-primary btn-lg">Criar Conta</a>
-                <a href="/Identity/Account/Login" class="btn btn-outline-primary btn-lg">Entrar</a>
+        <div class="d-flex justify-content-center align-items-center" style="min-height: calc(100vh - 3.5rem);">
+            <div class="text-center">
+                <div class="d-flex align-items-center justify-content-center gap-3 mb-3">
+                    <i class="bi bi-check2-square text-success" style="font-size: 3rem;"></i>
+                    <h1 class="fw-bold mb-0">TaskManager</h1>
+                </div>
+                <p class="text-muted mb-4">Organize suas tarefas com eficiência</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <a href="/Identity/Account/Register" class="btn btn-primary">Criar Conta</a>
+                    <a href="/Identity/Account/Login" class="btn btn-outline-primary">Entrar</a>
+                </div>
             </div>
         </div>
     </NotAuthorized>
@@ -27,9 +32,7 @@
         {
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             if (authState.User.Identity?.IsAuthenticated == true)
-            {
                 Navigation.NavigateTo("/tasks");
-            }
         }
     }
 }

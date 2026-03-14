@@ -8,6 +8,7 @@
 @inject NavigationManager Nav
 @inject OrganizationService OrgService
 @inject AuthenticationStateProvider AuthStateProvider
+@implements IDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Tarefas</PageTitle>
@@ -81,7 +82,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label">Prioridade máxima</label>
-                <input type="number" class="form-control" min="1" max="100"                       @bind="filter.MaxPriority"
+                <input type="number" class="form-control" min="1" max="100" @bind="filter.MaxPriority"
                        @bind:after="ApplyFilters" />
             </div>
         </div>
@@ -89,22 +90,22 @@
         <!-- Checkboxes + Limpar -->
         <div class="row mt-3 text-center">
             <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkAssigned"               @bind="filterAssignedToMe"
+                <input class="form-check-input me-1" type="checkbox" id="chkAssigned" @bind="filterAssignedToMe"
                        @bind:after="ApplyFilters" />
                 <label class="form-check-label" for="chkAssigned">👤 Atribuídas a mim</label>
             </div>
             <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkReview"               @bind="filterNeedsMyReview"
+                <input class="form-check-input me-1" type="checkbox" id="chkReview" @bind="filterNeedsMyReview"
                        @bind:after="ApplyFilters" />
                 <label class="form-check-label" for="chkReview">🔍 Aguardando minha revisão</label>
             </div>
             <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkMine"               @bind="filterCreatedByMe"
+                <input class="form-check-input me-1" type="checkbox" id="chkMine" @bind="filterCreatedByMe"
                        @bind:after="ApplyFilters" />
                 <label class="form-check-label" for="chkMine">✏️ Criadas por mim</label>
             </div>
             <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkBlocked"               @bind="filterBlocked"
+                <input class="form-check-input me-1" type="checkbox" id="chkBlocked" @bind="filterBlocked"
                        @bind:after="ApplyFilters" />
                 <label class="form-check-label" for="chkBlocked">⛔ Bloqueadas</label>
             </div>
@@ -112,7 +113,7 @@
                 <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">✕ Limpar</button>
             </div>
         </div>
-        
+
         <div class="mt-2">
             <small class="text-muted">Mostrando @filteredTasks.Count de @allTasks.Count tarefas</small>
         </div>
@@ -310,21 +311,40 @@ else
     private bool filterNeedsMyReview = false;
     private bool filterCreatedByMe = false;
     private bool filterBlocked = false;
+    private int? lastOrgId;
+
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        Nav.LocationChanged += OnLocationChanged;
 
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        await LoadFromUrl();
+        isLoading = false;
+    }
+
+    private async Task LoadFromUrl()
+    {
         var uri = Nav.ToAbsoluteUri(Nav.Uri);
         var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-        if (query.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
-            orgId = parsedOrgId;
+
+        int? newOrgId = null;
+        if (query.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsed))
+            newOrgId = parsed;
+
+        orgId = newOrgId;
 
         if (orgId.HasValue)
         {
             var org = await OrgService.GetOrganizationByIdAsync(orgId.Value);
             orgName = org?.Name ?? $"Org #{orgId}";
+        }
+        else
+        {
+            orgName = null;
         }
 
         allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
@@ -341,8 +361,19 @@ else
 
         await LoadPendingDependencies();
         ApplyFilters();
-        isLoading = false;
     }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        await LoadFromUrl();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
 
     private void ApplyFilters()
     {
@@ -455,6 +486,35 @@ t.DueDate.Value.ToLocalTime().Date <= today.AddDays(7)),
         {
             if (await TaskService.HasPendingDependenciesAsync(task.Id))
                 pendingDependencies.Add(task.Id);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        int? newOrgId = null;
+        if (query.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsed))
+            newOrgId = parsed;
+
+        if (newOrgId != lastOrgId)
+        {
+            lastOrgId = newOrgId;
+            orgId = newOrgId;
+
+            if (orgId.HasValue)
+            {
+                var org = await OrgService.GetOrganizationByIdAsync(orgId.Value);
+                orgName = org?.Name ?? $"Org #{orgId}";
+            }
+            else
+            {
+                orgName = null;
+            }
+
+            allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
+            await LoadPendingDependencies();
+            ApplyFilters();
         }
     }
 }

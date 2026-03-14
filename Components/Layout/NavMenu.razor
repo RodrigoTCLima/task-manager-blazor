@@ -1,37 +1,118 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using TaskManager.Services
+@using TaskManager.Models
+@implements IDisposable
+@inject NavigationManager Nav
+@inject TaskService TaskService
+@inject OrganizationService OrgService
+@inject AuthenticationStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<div class="top-row ps-3 navbar">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">TaskManager</a>
+        <a class="navbar-brand fw-semibold" href="">
+            <i class="bi bi-check2-square me-2"></i>TaskManager
+        </a>
     </div>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
 <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
+    <nav class="nav flex-column px-2 pt-2">
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="tasks">
-                <span class="bi bi-list-task-nav-menu" aria-hidden="true"></span> Tarefas
+        <div class="nav-item">
+            <NavLink class="nav-link" href="tasks" Match="NavLinkMatch.Prefix">
+                <i class="bi bi-list-task"></i> Tarefas
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="add-task">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Nova Tarefa
+                <i class="bi bi-plus-circle"></i> Nova Tarefa
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        <div class="nav-item">
             <NavLink class="nav-link" href="dashboard">
-                <span class="bi bi-bar-chart-line-fill" aria-hidden="true"></span> Dashboard
+                <i class="bi bi-speedometer2"></i> Dashboard
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="organizations">
-                🏢 Organizações
-            </NavLink>
+        <!-- Organizações com accordion -->
+        <div class="nav-item">
+            <div class="nav-link nav-link-accordion @(orgsExpanded ? "active-accordion" : "")" @onclick="ToggleOrgs"
+                 style="cursor:pointer;">
+                <i class="bi bi-building"></i>
+                <span class="flex-fill">Organizações</span>
+                <i class="bi @(orgsExpanded ? "bi-chevron-up" : "bi-chevron-down") small"></i>
+            </div>
+
+            @if (orgsExpanded)
+            {
+                <div class="org-submenu">
+                    <NavLink class="nav-link nav-link-sub" href="organizations" @onclick:stopPropagation>
+                        <i class="bi bi-grid"></i> Minhas Organizações
+                    </NavLink>
+                    @if (userOrgs != null && userOrgs.Any())
+                    {
+                        @foreach (var item in userOrgs)
+                        {
+                            <NavLink class="nav-link nav-link-sub" href="@("tasks?orgId=" + item.Org.Id)" @onclick:stopPropagation>
+                                <i class="bi bi-people"></i>
+                                <span class="org-name">@item.Org.Name</span>
+                                @if (item.PendingCount > 0)
+                                {
+                                    <span class="org-badge">@item.PendingCount</span>
+                                }
+                            </NavLink>
+                        }
+
+                    }
+                </div>
+            }
         </div>
 
     </nav>
 </div>
+
+@code {
+    private List<(Organization Org, int PendingCount)> userOrgs = new();
+    private bool orgsExpanded = false;
+    private string? userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        await LoadOrgs();
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        await LoadOrgs();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
+    private async Task LoadOrgs()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            userOrgs.Clear();
+            var orgs = await OrgService.GetUserOrganizationsAsync(userId);
+            foreach (var org in orgs)
+            {
+                var count = await TaskService.GetPendingTaskCountForUserInOrgAsync(userId, org.Id);
+                userOrgs.Add((org, count));
+            }
+        }
+    }
+
+    private void ToggleOrgs() => orgsExpanded = !orgsExpanded;
+}

@@ -223,4 +223,19 @@ public class TaskService
         return await query.ToListAsync();
     }
 
+    public async Task<int> GetPendingTaskCountForUserInOrgAsync(string userId, int orgId)
+    {
+        var tasks = await _context.Tasks
+            .Where(t => t.OrganizationId == orgId && !t.IsCompleted)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return tasks.Count(t =>
+            (t.AssignedToUserIds != null && t.AssignedToUserIds.Contains(userId))
+            ||
+            (t.ReviewByUserId != null && t.ReviewByUserId.Contains(userId)
+                && !(t.ReviewedByUserId != null && t.ReviewedByUserId.Contains(userId)))
+        );
+    }
+
 }

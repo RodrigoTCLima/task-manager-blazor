@@ -58,3 +58,32 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+.sidebar {
+    background-color: #f1f3f5 !important;
+}
+
+.sidebar .top-row {
+    background-color: #e9ecef !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+.sidebar .navbar-brand {
+    color: #212529 !important;
+}
+
+.sidebar .nav-link,
+.sidebar .nav-link-accordion {
+    color: #495057 !important;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link-accordion:hover {
+    background-color: #dee2e6 !important;
+    color: #212529 !important;
+}
+
+.sidebar .nav-link.active {
+    background-color: #ced4da !important;
+    color: #212529 !important;
+}
