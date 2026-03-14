@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Data;
 using TaskManager.Models;
+using TaskManager.DTOs;
 
 namespace TaskManager.Services;
 
@@ -37,10 +38,6 @@ public class TaskService
             .ToListAsync();
     }
 
-
-
-
-
     public async Task<TaskItem?> GetTaskByIdAsync(int id, string? userId = null)
     {
         return await _context.Tasks
@@ -48,7 +45,6 @@ public class TaskService
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id);
     }
-
 
     public async Task<TaskItem> CreateTaskAsync(TaskItem task)
     {
@@ -83,7 +79,6 @@ public class TaskService
 
         await _context.SaveChangesAsync();
     }
-
 
     public async Task DeleteTaskAsync(int id)
     {
@@ -182,6 +177,50 @@ public class TaskService
         }
     }
 
+    public async Task<List<TaskItem>> GetFilteredTasksAsync(string? userId, int? orgId, TaskFilter filter)
+    {
+        IQueryable<TaskItem> query = _context.Tasks
+            .Include(t => t.Comments)
+            .AsNoTracking();
 
+        if (orgId.HasValue)
+            query = query.Where(t => t.OrganizationId == orgId.Value);
+        else if (!string.IsNullOrEmpty(userId))
+            query = query.Where(t => t.AuthorUserId == userId
+                && (t.OrganizationId == null || t.OrganizationId == 0));
+
+        if (!string.IsNullOrEmpty(filter.Category))
+            query = query.Where(t => t.Category == filter.Category);
+
+        if (filter.IsCompleted.HasValue)
+            query = query.Where(t => t.IsCompleted == filter.IsCompleted.Value);
+
+        if (filter.MaxPriority.HasValue)
+            query = query.Where(t => t.Priority <= filter.MaxPriority.Value);
+
+        if (!string.IsNullOrEmpty(filter.Tag))
+            query = query.Where(t => t.Tags.Contains(filter.Tag));
+
+        if (!string.IsNullOrEmpty(filter.DueDateRange))
+        {
+            var today = DateTime.UtcNow.Date;
+            query = filter.DueDateRange switch
+            {
+                "today" => query.Where(t => t.DueDate.HasValue && t.DueDate.Value.Date == today),
+                "week" => query.Where(t => t.DueDate.HasValue && t.DueDate.Value.Date >= today && t.DueDate.Value.Date <= today.AddDays(7)),
+                "overdue" => query.Where(t => t.DueDate.HasValue && t.DueDate.Value.Date < today && !t.IsCompleted),
+                _ => query
+            };
+        }
+
+        query = filter.SortBy switch
+        {
+            "duedate" => query.OrderBy(t => t.DueDate == null).ThenBy(t => t.DueDate),
+            "created" => query.OrderByDescending(t => t.CreatedAt),
+            _ => query.OrderBy(t => t.Priority).ThenBy(t => t.CreatedAt)
+        };
+
+        return await query.ToListAsync();
+    }
 
 }

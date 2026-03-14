@@ -1,20 +1,24 @@
 @page "/tasks"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
-@using Microsoft.AspNetCore.Mvc
 @using TaskManager.Services
 @using TaskManager.Models
+@using TaskManager.DTOs
 @inject TaskService TaskService
 @inject NavigationManager Nav
 @inject OrganizationService OrgService
-
 @inject AuthenticationStateProvider AuthStateProvider
-
 @rendermode InteractiveServer
 
 <PageTitle>Tarefas</PageTitle>
 
-<h1>Gerenciador de Tarefas</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Gerenciador de Tarefas</h1>
+    <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Nova Tarefa
+    </a>
+</div>
+
 @if (orgId.HasValue)
 {
     <div class="alert alert-primary d-flex justify-content-between align-items-center py-2 mb-3">
@@ -23,60 +27,99 @@
     </div>
 }
 
-
 <!-- FILTROS -->
 <div class="card mb-4">
     <div class="card-header">
-        <h5><i class="bi bi-funnel"></i> Filtros</h5>
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
     </div>
     <div class="card-body">
         <div class="row g-3">
-            <div class="col-md-3">
-                <label>Prioridade Máxima</label>
-                <InputNumber @bind-Value="maxPriority" class="form-control" min="1" max="100" />
-            </div>
-            <div class="col-md-3">
-                <label>Categoria</label>
-                <InputSelect @bind-Value="selectedCategory" class="form-select">
+            <div class="col-md-2">
+                <label class="form-label">Categoria</label>
+                <select class="form-select" @bind="filter.Category" @bind:after="ApplyFilters">
                     <option value="">Todas</option>
-                    <option>Geral</option>
-                    <option>Trabalho</option>
-                    <option>Pessoal</option>
-                    <option>Estudos</option>
-                    <option>Saúde</option>
-                </InputSelect>
+                    @foreach (var cat in availableCategories)
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
             </div>
             <div class="col-md-2">
-                <label>Status</label>
-                <InputSelect @bind-Value="statusFilter" class="form-select">
+                <label class="form-label">Tag</label>
+                <select class="form-select" @bind="filter.Tag" @bind:after="ApplyFilters">
+                    <option value="">Todas</option>
+                    @foreach (var tag in availableTags)
+                    {
+                        <option value="@tag">@tag</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" @bind="statusFilter" @bind:after="ApplyFilters">
                     <option value="">Todos</option>
                     <option value="pending">Pendentes</option>
                     <option value="completed">Concluídas</option>
-                </InputSelect>
+                </select>
             </div>
             <div class="col-md-2">
-                <label>Tag</label>
-                <InputText @bind-Value="tagFilter" class="form-control" placeholder="urgente" />
+                <label class="form-label">Vencimento</label>
+                <select class="form-select" @bind="filter.DueDateRange" @bind:after="ApplyFilters">
+                    <option value="">Qualquer</option>
+                    <option value="today">Hoje</option>
+                    <option value="week">Próximos 7 dias</option>
+                    <option value="overdue">Atrasadas</option>
+                </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button class="btn btn-primary w-100" @onclick="ApplyFilters">Filtrar</button>
+            <div class="col-md-2">
+                <label class="form-label">Ordenar por</label>
+                <select class="form-select" @bind="filter.SortBy" @bind:after="ApplyFilters">
+                    <option value="priority">Prioridade</option>
+                    <option value="duedate">Vencimento</option>
+                    <option value="created">Criação</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Prioridade máxima</label>
+                <input type="number" class="form-control" min="1" max="100"                       @bind="filter.MaxPriority"
+                       @bind:after="ApplyFilters" />
             </div>
         </div>
-        <div class="mt-3">
+
+        <!-- Checkboxes + Limpar -->
+        <div class="row mt-3 text-center">
+            <div class="col">
+                <input class="form-check-input me-1" type="checkbox" id="chkAssigned"               @bind="filterAssignedToMe"
+                       @bind:after="ApplyFilters" />
+                <label class="form-check-label" for="chkAssigned">👤 Atribuídas a mim</label>
+            </div>
+            <div class="col">
+                <input class="form-check-input me-1" type="checkbox" id="chkReview"               @bind="filterNeedsMyReview"
+                       @bind:after="ApplyFilters" />
+                <label class="form-check-label" for="chkReview">🔍 Aguardando minha revisão</label>
+            </div>
+            <div class="col">
+                <input class="form-check-input me-1" type="checkbox" id="chkMine"               @bind="filterCreatedByMe"
+                       @bind:after="ApplyFilters" />
+                <label class="form-check-label" for="chkMine">✏️ Criadas por mim</label>
+            </div>
+            <div class="col">
+                <input class="form-check-input me-1" type="checkbox" id="chkBlocked"               @bind="filterBlocked"
+                       @bind:after="ApplyFilters" />
+                <label class="form-check-label" for="chkBlocked">⛔ Bloqueadas</label>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">✕ Limpar</button>
+            </div>
+        </div>
+        
+        <div class="mt-2">
             <small class="text-muted">Mostrando @filteredTasks.Count de @allTasks.Count tarefas</small>
         </div>
     </div>
 </div>
 
-<!-- BOTÃO NOVA TAREFA -->
-<div class="mb-3">
-    <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success">
-        <i class="bi bi-plus-circle"></i> Nova Tarefa
-    </a>
-
-</div>
-
-@if (filteredTasks == null)
+@if (isLoading)
 {
     <div class="spinner-border" role="status">
         <span class="visually-hidden">Carregando...</span>
@@ -86,8 +129,14 @@ else if (!filteredTasks.Any())
 {
     <div class="alert alert-info">
         <h5>Nenhuma tarefa encontrada</h5>
-        <p>Crie sua primeira tarefa ou ajuste os filtros.</p>
-        <a href="/add-task" class="btn btn-primary">Criar Primeira Tarefa</a>
+        @if (IsFilterActive())
+        {
+            <button class="btn btn-link p-0" @onclick="ClearFilters">Limpar filtros</button>
+        }
+        else
+        {
+            <a href="/add-task" class="btn btn-primary">Criar Primeira Tarefa</a>
+        }
     </div>
 }
 else
@@ -99,20 +148,19 @@ else
                 <div class="d-flex align-items-center gap-2">
                     <input type="checkbox" class="form-check-input mt-0" checked="@task.IsCompleted"
                            disabled="@(pendingDependencies.Contains(task.Id))" @onchange="() => ToggleComplete(task.Id)"
-                           style="width: 1.2rem; height: 1.2rem; cursor: @(pendingDependencies.Contains(task.Id) ? "not-allowed" : "pointer");" />
-
+                           style="width:1.2rem;height:1.2rem;cursor:@(pendingDependencies.Contains(task.Id) ? "not-allowed" : "pointer");" />
                     <h5 class="mb-0">
                         <a href="/task/@task.Id"
                                class="text-decoration-none @(task.IsCompleted ? "text-decoration-line-through text-muted" : "text-dark")">
                             <span class="text-muted me-1 small">#@task.Id</span> @task.Title
                         </a>
                     </h5>
-
                 </div>
                 <span class="badge @(GetPriorityClass(task.Priority)) fs-6">
                     @GetPriorityEmoji(task.Priority) @task.Priority
                 </span>
             </div>
+
             @if (task.DependencyOnTaskIds != null && task.DependencyOnTaskIds.Any())
             {
                 <div class="px-3 pt-2">
@@ -145,10 +193,7 @@ else
                     <p class="card-text">@task.Description</p>
                 }
                 <div class="row text-muted small">
-                    <div class="col-md-3">
-                        <strong>@task.Category</strong>
-                    </div>
-                    @* Tags *@
+                    <div class="col-md-3"><strong>@task.Category</strong></div>
                     <div class="col-md-3">
                         Tags:
                         @foreach (var tag in task.Tags.Take(3))
@@ -157,23 +202,19 @@ else
                         }
                         @if (task.Tags.Count > 3)
                         {
-                            <span class="text-muted">...</span>
+                            <span class="text-muted">+@(task.Tags.Count - 3)</span>
                         }
                     </div>
-
-                    @* Data de vencimento *@
                     @if (task.DueDate.HasValue)
                     {
                         <div class="col-md-3">
                             Vence @task.DueDate.Value.ToLocalTime().ToString("dd/MM")
-                            @if (task.DueDate.Value < DateTime.Now)
+                            @if (task.DueDate.Value < DateTime.Now && !task.IsCompleted)
                             {
                                 <span class="badge bg-danger ms-1">Atrasada</span>
                             }
                         </div>
                     }
-
-                    @* Assignees *@
                     @if (task.AssignedToUserIds?.Any() == true)
                     {
                         <div class="col-md-3">
@@ -188,8 +229,6 @@ else
                             }
                         </div>
                     }
-
-                    @* Revisão pendente *@
                     @if (task.NeedsReview > 0 && task.ReviewByUserId?.Any() == true)
                     {
                         var reviewed = task.ReviewedByUserId?.Count ?? 0;
@@ -209,10 +248,7 @@ else
                             }
                         </div>
                     }
-
-                    <div class="col-md-3">
-                        Criada: @task.CreatedAt.ToString("dd/MM/yy HH:mm")
-                    </div>
+                    <div class="col-md-3">Criada: @task.CreatedAt.ToString("dd/MM/yy HH:mm")</div>
                 </div>
                 @if (task.Comments?.Any() == true)
                 {
@@ -229,13 +265,13 @@ else
                     <i class="bi bi-trash"></i> Excluir
                 </button>
             </div>
-
         </div>
     }
 }
+
 @if (showDeleteConfirm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+    <div class="modal show d-block" tabindex="-1" style="background-color:rgba(0,0,0,0.5);">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -254,112 +290,171 @@ else
     </div>
 }
 
-
 @code {
-    private List<TaskItem>? allTasks;
-    private List<TaskItem>? filteredTasks;
-    private int maxPriority = 100;
-    private string selectedCategory = "";
+    private List<TaskItem> allTasks = new();
+    private List<TaskItem> filteredTasks = new();
+    private List<string> availableCategories = new();
+    private List<string> availableTags = new();
+
+    private TaskFilter filter = new();
     private string statusFilter = "";
-    private string tagFilter = "";
+
     private HashSet<int> pendingDependencies = new();
     private int? orgId;
     private string? orgName;
     private string? currentUserId;
-
-
-
+    private bool isLoading = true;
+    private bool showDeleteConfirm = false;
+    private int taskToDeleteId = 0;
+    private bool filterAssignedToMe = false;
+    private bool filterNeedsMyReview = false;
+    private bool filterCreatedByMe = false;
+    private bool filterBlocked = false;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var userId = authState.User.FindFirst(
-        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value; // GUID do Identity
-        currentUserId = userId;
+        currentUserId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
         var uri = Nav.ToAbsoluteUri(Nav.Uri);
         var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
         if (query.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
             orgId = parsedOrgId;
+
         if (orgId.HasValue)
         {
             var org = await OrgService.GetOrganizationByIdAsync(orgId.Value);
             orgName = org?.Name ?? $"Org #{orgId}";
         }
 
+        allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
 
-        allTasks = await TaskService.GetAllTasksAsync(userId, orgId);
+        availableCategories = allTasks
+            .Select(t => t.Category)
+            .Where(c => !string.IsNullOrEmpty(c))
+            .Distinct().OrderBy(c => c).ToList();
+
+        availableTags = allTasks
+            .SelectMany(t => t.Tags ?? new List<string>())
+            .Where(t => !string.IsNullOrEmpty(t))
+            .Distinct().OrderBy(t => t).ToList();
+
         await LoadPendingDependencies();
         ApplyFilters();
+        isLoading = false;
     }
-
 
     private void ApplyFilters()
     {
-        filteredTasks = allTasks?
-        .Where(t => t.Priority <= maxPriority)
-        .Where(t => string.IsNullOrEmpty(selectedCategory) || t.Category == selectedCategory)
-        .Where(t => string.IsNullOrEmpty(statusFilter) ||
-        (statusFilter == "pending" && !t.IsCompleted) ||
-        (statusFilter == "completed" && t.IsCompleted))
-        .Where(t => string.IsNullOrEmpty(tagFilter) ||
-        t.Tags.Any(tag => tag.Contains(tagFilter, StringComparison.OrdinalIgnoreCase)))
-        .OrderByDescending(t => t.Priority)
-        .ThenBy(t => t.DueDate ?? DateTime.MaxValue)
-        .ToList();
+        var result = allTasks.AsEnumerable();
+
+        if (!string.IsNullOrEmpty(filter.Category))
+            result = result.Where(t => t.Category == filter.Category);
+
+        if (!string.IsNullOrEmpty(filter.Tag))
+            result = result.Where(t => t.Tags != null && t.Tags.Contains(filter.Tag));
+
+        if (!string.IsNullOrEmpty(statusFilter))
+            result = result.Where(t => statusFilter == "pending" ? !t.IsCompleted : t.IsCompleted);
+
+        if (!string.IsNullOrEmpty(filter.DueDateRange))
+        {
+            var today = DateTime.Now.Date;
+            result = filter.DueDateRange switch
+            {
+                "today" => result.Where(t => t.DueDate.HasValue && t.DueDate.Value.ToLocalTime().Date == today),
+                "week" => result.Where(t => t.DueDate.HasValue && t.DueDate.Value.ToLocalTime().Date >= today &&
+t.DueDate.Value.ToLocalTime().Date <= today.AddDays(7)),
+                "overdue" => result.Where(t => t.DueDate.HasValue && t.DueDate.Value.ToLocalTime().Date < today && !t.IsCompleted),
+                _ => result
+            };
+        }
+        if (filterAssignedToMe)
+            result = result.Where(t => t.AssignedToUserIds != null && t.AssignedToUserIds.Contains(currentUserId ?? ""));
+
+        if (filterNeedsMyReview)
+            result = result.Where(t => t.ReviewByUserId != null &&
+                                       t.ReviewByUserId.Contains(currentUserId ?? "") &&
+                                       !(t.ReviewedByUserId ?? new()).Contains(currentUserId ?? ""));
+
+        if (filterCreatedByMe)
+            result = result.Where(t => t.AuthorUserId == currentUserId);
+
+        if (filter.MaxPriority.HasValue)
+            result = result.Where(t => t.Priority <= filter.MaxPriority.Value);
+
+        if (filterBlocked)
+            result = result.Where(t => pendingDependencies.Contains(t.Id));
+
+        result = filter.SortBy switch
+        {
+            "duedate" => result.OrderBy(t => t.DueDate == null).ThenBy(t => t.DueDate),
+            "created" => result.OrderByDescending(t => t.CreatedAt),
+            _ => result.OrderBy(t => t.Priority).ThenBy(t => t.CreatedAt)
+        };
+
+        filteredTasks = result.ToList();
     }
 
-    private string GetPriorityEmoji(int priority) =>
-    priority switch { <= 2 => "🔴", <= 5 => "🟠", <= 10 => "🟡", <= 20 => "🟢", _ => "⚪" };
-
-    private string GetPriorityClass(int priority) =>
-    priority switch { <= 2 => "bg-danger", <= 5 => "bg-warning", <= 10 => "bg-info", _ => "bg-success" };
-
-    private bool showDeleteConfirm = false;
-    private int taskToDeleteId = 0;
-
-    private void ShowDeleteConfirm(int id)
+    private void ClearFilters()
     {
-        taskToDeleteId = id;
-        showDeleteConfirm = true;
+        filter = new TaskFilter();
+        statusFilter = "";
+        filterAssignedToMe = false;
+        filterNeedsMyReview = false;
+        filterCreatedByMe = false;
+        filterBlocked = false;
+        filter.MaxPriority = null;
+        ApplyFilters();
     }
+
+    private bool IsFilterActive() =>
+        !string.IsNullOrEmpty(filter.Category) ||
+        !string.IsNullOrEmpty(filter.Tag) ||
+        !string.IsNullOrEmpty(statusFilter) ||
+        !string.IsNullOrEmpty(filter.DueDateRange) ||
+        filterAssignedToMe ||
+        filterNeedsMyReview ||
+        filterCreatedByMe ||
+        filterBlocked ||
+        filter.MaxPriority.HasValue;
+
+    private string GetPriorityEmoji(int p) => p switch { <= 2 => "🔴", <= 5 => "🟠", <= 10 => "🟡", <= 20 => "🟢", _ => "⚪" };
+    private string GetPriorityClass(int p) => p switch
+    {
+        <= 2 => "bg-danger",
+        <= 5 => "bg-warning",
+        <= 10 => "bg-info",
+        _ =>
+"bg-success"
+    };
+
+    private void ShowDeleteConfirm(int id) { taskToDeleteId = id; showDeleteConfirm = true; }
+    private void CancelDelete() { showDeleteConfirm = false; }
 
     private async Task ConfirmDelete()
     {
         await TaskService.DeleteTaskAsync(taskToDeleteId);
         showDeleteConfirm = false;
-        await OnInitializedAsync(); // Recarrega
-    }
-
-    private void CancelDelete()
-    {
-        showDeleteConfirm = false;
+        await OnInitializedAsync();
     }
 
     private async Task ToggleComplete(int id)
     {
         if (pendingDependencies.Contains(id)) return;
         await TaskService.ToggleCompleteAsync(id);
-
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var userId = authState.User.FindFirst(
-        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-        allTasks = await TaskService.GetAllTasksAsync(userId, orgId);
-        ApplyFilters();
+        allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
         await LoadPendingDependencies();
+        ApplyFilters();
     }
 
     private async Task LoadPendingDependencies()
     {
         pendingDependencies.Clear();
-        foreach (var task in allTasks ?? new())
+        foreach (var task in allTasks)
         {
             if (await TaskService.HasPendingDependenciesAsync(task.Id))
                 pendingDependencies.Add(task.Id);
         }
     }
-
-
-
 }
