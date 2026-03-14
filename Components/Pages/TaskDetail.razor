@@ -2,8 +2,12 @@
 @attribute [Authorize]
 @using TaskManager.Models
 @using TaskManager.Services
+@using Microsoft.AspNetCore.Identity
 @inject TaskService TaskService
 @inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<IdentityUser> UserManager
+
 @rendermode InteractiveServer
 
 
@@ -29,12 +33,21 @@ else
         </div>
 
         <!-- Status -->
+        @{
+            var reviewPending = task.NeedsReview > 0 &&
+            (task.ReviewedByUserId?.Count ?? 0) < task.NeedsReview;
+        }
         <div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
             <div class="form-check form-check-inline">
                 @if (hasPendingDeps)
                 {
                     <span style="font-size:1.2rem; cursor:not-allowed;" title="Conclua as dependências primeiro">🔒</span>
                     <label class="form-check-label fw-bold ms-1 text-warning">Bloqueada</label>
+                }
+                else if (reviewPending)
+                {
+                    <span style="font-size:1.2rem; cursor:not-allowed;" title="Conclua as revisões primeiro">🔍</span>
+                    <label class="form-check-label fw-bold ms-1 text-info">Aguardando Revisão</label>
                 }
                 else
                 {
@@ -48,170 +61,256 @@ else
             {
                 <span class="text-warning small">⚠️ Conclua as dependências primeiro</span>
             }
-            @if (unlockedMsg != null)
+            @if (reviewPending)
             {
-                <span class="badge bg-success">@unlockedMsg</span>
-            }
-            @if (task.IsCompleted)
-            {
-                <span class="badge bg-success">✅ Concluída</span>
-            }
-            else if (task.DueDate.HasValue && task.DueDate.Value < DateTime.UtcNow)
-            {
-                <span class="badge bg-danger">🔥 Atrasada</span>
-            }
-            else
-            {
-                <span class="badge bg-warning text-dark">⏳ Pendente</span>
-            }
-            <span class="badge bg-secondary">🗂️ @task.Category</span>
-        </div>
-
-
-
-        <!-- Descrição -->
-        @if (!string.IsNullOrWhiteSpace(task.Description))
-        {
-            <div class="card mb-3">
-                <div class="card-header fw-bold">📝 Descrição</div>
-                <div class="card-body">@task.Description</div>
+                <span class="text-info small">🔍 @(task.ReviewedByUserId?.Count ?? 0)/@task.NeedsReview revisões
+                    concluídas</span>
+                }
+                @if (unlockedMsg != null)
+                {
+                    <span class="badge bg-success">@unlockedMsg</span>
+                }
+                @if (task.IsCompleted)
+                {
+                    <span class="badge bg-success">✅ Concluída</span>
+                }
+                else if (task.DueDate.HasValue && task.DueDate.Value < DateTime.UtcNow)
+                {
+                    <span class="badge bg-danger">🔥 Atrasada</span>
+                }
+                else
+                {
+                    <span class="badge bg-warning text-dark">⏳ Pendente</span>
+                }
+                <span class="badge bg-secondary">🗂️ @task.Category</span>
             </div>
-        }
 
-        <!-- Datas -->
-        <div class="card mb-3">
-            <div class="card-header fw-bold">📅 Datas</div>
-            <ul class="list-group list-group-flush">
-                <li class="list-group-item d-flex justify-content-between">
-                    <span>Criada em</span>
-                    <span>@task.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
-                </li>
-                <li class="list-group-item d-flex justify-content-between">
-                    <span>Vencimento</span>
-                    <span>@(task.DueDate.HasValue ? task.DueDate.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") :
-                    "—")</span>
+
+
+            <!-- Descrição -->
+            @if (!string.IsNullOrWhiteSpace(task.Description))
+            {
+                <div class="card mb-3">
+                    <div class="card-header fw-bold">📝 Descrição</div>
+                    <div class="card-body">@task.Description</div>
+                </div>
+            }
+
+            <!-- Datas -->
+            <div class="card mb-3">
+                <div class="card-header fw-bold">📅 Datas</div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Criada em</span>
+                        <span>@task.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
                     </li>
-                    @if (task.HasAlarm && task.AlarmTime.HasValue)
-                    {
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>⏰ Alarme</span>
-                            <span>@task.AlarmTime.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Vencimento</span>
+                        <span>@(task.DueDate.HasValue ? task.DueDate.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") :
+                    "—")</span>
                         </li>
-                    }
-                </ul>
-            </div>
-
-            <!-- Tags -->
-            @if (task.Tags?.Any() == true)
-            {
-                <div class="card mb-3">
-                    <div class="card-header fw-bold">🏷️ Tags</div>
-                    <div class="card-body d-flex flex-wrap gap-2">
-                        @foreach (var tag in task.Tags)
+                        @if (task.HasAlarm && task.AlarmTime.HasValue)
                         {
-                            <span class="badge bg-info text-dark">@tag</span>
-                        }
-                    </div>
-                </div>
-            }
-
-            <!-- Recorrência -->
-            @if (task.IsRecurrent)
-            {
-                <div class="card mb-3">
-                    <div class="card-header fw-bold">🔁 Recorrência</div>
-                    <div class="card-body">@task.RecurrencePattern</div>
-                </div>
-            }
-
-            <!-- Comentários -->
-            <div class="card mb-3">
-                <div class="card-header fw-bold">💬 Comentários</div>
-                <div class="card-body">
-                    @if (task.Comments == null || !task.Comments.Any())
-                    {
-                        <p class="text-muted">Nenhum comentário ainda.</p>
-                    }
-                    else
-                    {
-                        <ul class="list-group list-group-flush">
-                            @foreach (var comment in task.Comments.OrderByDescending(c => c.CreatedAt))
-                            {
-                                <li class="list-group-item">
-                                    <div class="d-flex justify-content-between">
-                                        <strong>@comment.AuthorUserId</strong>
-                                        <small class="text-muted">@comment.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
-                                    </div>
-                                    <p class="mb-0 mt-1">@comment.Content</p>
-                                </li>
-                            }
-                        </ul>
-                    }
-                </div>
-            </div>
-            @if (dependencies.Any())
-            {
-                <div class="card mb-3">
-                    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
-                        <span>🔗 Depende de</span>
-                        <span class="small text-muted">
-                            @dependencies.Count(d => d.IsCompleted)/@dependencies.Count concluídas
-                        </span>
-                    </div>
-                    @{
-                        var total = dependencies.Count;
-                        var done = dependencies.Count(d => d.IsCompleted);
-                        var pct = total > 0 ? (done * 100 / total) : 0;
-                    }
-                    <div class="progress" style="height: 6px; border-radius: 0;">
-                        <div class="progress-bar bg-success" style="width:@pct%"></div>
-                    </div>
-                    <ul class="list-group list-group-flush">
-                        @foreach (var dep in dependencies)
-                        {
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <div class="d-flex align-items-center gap-2">
-                                    <input type="checkbox" class="form-check-input mt-0" checked="@dep.IsCompleted"
-                                           @onchange="() => ToggleDependencyTask(dep.Id)" style="width:1.1rem;height:1.1rem;" />
-                                    @{
-                                        var depTooltip = dep.Title + (!string.IsNullOrWhiteSpace(dep.Description) ? " — " + dep.Description
-                                        : "");
-                                        var depLinkTooltip = !string.IsNullOrWhiteSpace(dep.Description) ? dep.Description : dep.Title;
-                                    }
-                                    <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")"
-                                           title="@depLinkTooltip">
-                                        <span class="badge bg-secondary me-1" title="@depTooltip">
-                                            #@dep.Id
-                                        </span>@dep.Title
-                                    </a>
-
-                                </div>
-                                <div class="d-flex align-items-center gap-1">
-                                    <span class="badge @GetPriorityClass(dep.Priority)">@GetPriorityEmoji(dep.Priority)</span>
-                                    @if (dep.IsCompleted)
-                                    {
-                                        <span class="badge bg-success">✅</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-warning text-dark">⏳</span>
-                                    }
-                                </div>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>⏰ Alarme</span>
+                                <span>@task.AlarmTime.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
                             </li>
                         }
                     </ul>
                 </div>
-            }
+
+                <!-- Tags -->
+                @if (task.Tags?.Any() == true)
+                {
+                    <div class="card mb-3">
+                        <div class="card-header fw-bold">🏷️ Tags</div>
+                        <div class="card-body d-flex flex-wrap gap-2">
+                            @foreach (var tag in task.Tags)
+                            {
+                                <span class="badge bg-info text-dark">@tag</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Recorrência -->
+                @if (task.IsRecurrent)
+                {
+                    <div class="card mb-3">
+                        <div class="card-header fw-bold">🔁 Recorrência</div>
+                        <div class="card-body">@task.RecurrencePattern</div>
+                    </div>
+                }
+
+                <!-- Comentários -->
+                <div class="card mb-3">
+                    <div class="card-header fw-bold">💬 Comentários</div>
+                    <div class="card-body">
+                        @if (task.Comments == null || !task.Comments.Any())
+                        {
+                            <p class="text-muted">Nenhum comentário ainda.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var comment in task.Comments.OrderByDescending(c => c.CreatedAt))
+                                {
+                                    <li class="list-group-item">
+                                        <div class="d-flex justify-content-between">
+                                            <strong>@comment.AuthorUserId</strong>
+                                            <small class="text-muted">@comment.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                        </div>
+                                        <p class="mb-0 mt-1">@comment.Content</p>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+                @if (dependencies.Any())
+                {
+                    <div class="card mb-3">
+                        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+                            <span>🔗 Depende de</span>
+                            <span class="small text-muted">
+                                @dependencies.Count(d => d.IsCompleted)/@dependencies.Count concluídas
+                            </span>
+                        </div>
+                        @{
+                            var total = dependencies.Count;
+                            var done = dependencies.Count(d => d.IsCompleted);
+                            var pct = total > 0 ? (done * 100 / total) : 0;
+                        }
+                        <div class="progress" style="height: 6px; border-radius: 0;">
+                            <div class="progress-bar bg-success" style="width:@pct%"></div>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            @foreach (var dep in dependencies)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <input type="checkbox" class="form-check-input mt-0" checked="@dep.IsCompleted"
+                                               @onchange="() => ToggleDependencyTask(dep.Id)" style="width:1.1rem;height:1.1rem;" />
+                                        @{
+                                            var depTooltip = dep.Title + (!string.IsNullOrWhiteSpace(dep.Description) ? " — " + dep.Description
+                                            : "");
+                                            var depLinkTooltip = !string.IsNullOrWhiteSpace(dep.Description) ? dep.Description : dep.Title;
+                                        }
+                                        <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")"
+                                               title="@depLinkTooltip">
+                                            <span class="badge bg-secondary me-1" title="@depTooltip">
+                                                #@dep.Id
+                                            </span>@dep.Title
+                                        </a>
+
+                                    </div>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="badge @GetPriorityClass(dep.Priority)">@GetPriorityEmoji(dep.Priority)</span>
+                                        @if (dep.IsCompleted)
+                                        {
+                                            <span class="badge bg-success">✅</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">⏳</span>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+                <!-- Revisão -->
+                @if (task.NeedsReview > 0 && task.ReviewByUserId?.Any() == true)
+                {
+                    <div class="card mb-3">
+                        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+                            <span>🔍 Revisão</span>
+                            <span class="small text-muted">
+                                @(task.ReviewedByUserId?.Count ?? 0)/@task.NeedsReview revisão(ões) concluída(s)
+                            </span>
+                        </div>
+                        @{
+                            var reviewDone = task.ReviewedByUserId?.Count ?? 0;
+                            var reviewPct = task.NeedsReview > 0 ? (reviewDone * 100 / task.NeedsReview) : 0;
+                        }
+                        <div class="progress" style="height: 6px; border-radius: 0;">
+                            <div class="progress-bar bg-info" style="width:@reviewPct%"></div>
+                        </div>
+                        <div class="card-body">
+                            @if (reviewDone >= task.NeedsReview)
+                            {
+                                <div class="alert alert-success py-1 mb-2">✅ Todas as revisões concluídas.</div>
+                            }
+
+                            <ul class="list-group list-group-flush mb-3">
+                                @foreach (var reviewerId in task.ReviewByUserId!)
+                                {
+                                    var alreadyReviewed = task.ReviewedByUserId?.Contains(reviewerId) == true;
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>
+                                            @if (alreadyReviewed)
+                                            {
+                                                <span class="badge bg-success me-2">✅</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary me-2">⏳</span>
+                                            }
+                                            @(reviewerNames.TryGetValue(reviewerId, out var rname) ? rname : reviewerId[..8])
+
+                                        </span>
+                                        @if (alreadyReviewed)
+                                        {
+                                            <span class="text-muted small">Revisado</span>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+
+                            <!-- Botão para o revisor atual marcar como revisado -->
+                            @if (isReviewer && !hasCurrentUserReviewed)
+                            {
+                                <button class="btn btn-success" @onclick="MarkAsReviewed">
+                                    ✅ Marcar minha revisão como concluída
+                                </button>
+                            }
+                            else if (isReviewer && hasCurrentUserReviewed)
+                            {
+                                <span class="text-muted small">Você já revisou esta tarefa.</span>
+                            }
+
+                            @* Aviso para o autor quando revisão ainda está pendente *@
+                            @if (task.AuthorUserId == currentUserId && reviewPending && !isReviewer)
+                            {
+                                <div class="alert alert-info py-2 mt-2 mb-0">
+                                    ⏳ Aguardando revisão de
+                                    @(task.ReviewByUserId!.Count(r => task.ReviewedByUserId == null || !task.ReviewedByUserId.Contains(r)))
+                                    revisor(es) para poder concluir esta tarefa.
+                                </div>
+                            }
+
+                            @* Botão de nova rodada para o autor após revisão completa *@
+                            @if (task.AuthorUserId == currentUserId && !reviewPending && task.NeedsReview > 0)
+                            {
+                                <button class="btn btn-outline-info mt-2" @onclick="RequestReview">
+                                    🔔 Solicitar nova rodada de revisão
+                                </button>
+                            }
+
+                        </div>
+                    </div>
+                }
 
 
-            <!-- Botões -->
-            <div class="d-flex gap-2 mt-4">
-                <a href="/dashboard" class="btn btn-outline-secondary">← Voltar ao Dashboard</a>
-                <a href="/edit-task/@task.Id" class="btn btn-primary">✏️ Editar</a>
+                <!-- Botões -->
+                <div class="d-flex gap-2 mt-4">
+                    <a href="/dashboard" class="btn btn-outline-secondary">← Voltar ao Dashboard</a>
+                    <a href="/edit-task/@task.Id" class="btn btn-primary">✏️ Editar</a>
+                </div>
+
             </div>
-
-        </div>
-    }
+        }
 
 @code {
     [Parameter] public int Id { get; set; }
@@ -219,30 +318,68 @@ else
     private List<TaskItem> dependencies = new();
     private bool hasPendingDeps;
     private string? unlockedMsg;
+    private string? currentUserId;
+    private bool isReviewer;
+    private bool hasCurrentUserReviewed;
+    private Dictionary<string, string> reviewerNames = new();
+
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(
+        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        await LoadTask();
+    }
+
+    private async Task LoadTask()
+    {
         task = await TaskService.GetTaskByIdAsync(Id);
+        // No LoadTask(), após carregar a task:
+        if (task.ReviewByUserId?.Any() == true)
+        {
+            foreach (var uid in task.ReviewByUserId)
+            {
+                var user = await UserManager.FindByIdAsync(uid);
+                reviewerNames[uid] = user?.UserName ?? uid[..8];
+            }
+        }
+
         dependencies = await TaskService.GetDependenciesAsync(Id);
         hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
+
+        if (task != null && currentUserId != null)
+        {
+            isReviewer = task.ReviewByUserId?.Contains(currentUserId) == true;
+            hasCurrentUserReviewed = task.ReviewedByUserId?.Contains(currentUserId) == true;
+        }
+    }
+
+    private async Task MarkAsReviewed()
+    {
+        if (task == null || currentUserId == null) return;
+
+        task.ReviewedByUserId ??= new List<string>();
+        if (!task.ReviewedByUserId.Contains(currentUserId))
+            task.ReviewedByUserId.Add(currentUserId);
+
+        await TaskService.UpdateTaskAsync(task);
+        await LoadTask();
     }
 
     private async Task ToggleMainTask()
     {
         await TaskService.ToggleCompleteAsync(task!.Id);
-        task = await TaskService.GetTaskByIdAsync(Id);
-        hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
+        await LoadTask();
     }
 
     private async Task ToggleDependencyTask(int depId)
     {
         await TaskService.ToggleCompleteAsync(depId);
-        dependencies = await TaskService.GetDependenciesAsync(Id);
         var wasBlocked = hasPendingDeps;
-        hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
-        task = await TaskService.GetTaskByIdAsync(Id);
+        await LoadTask();
 
-        // Aviso de desbloqueio
         if (wasBlocked && !hasPendingDeps)
             unlockedMsg = "🔓 Tarefa desbloqueada! Todas as dependências concluídas.";
         else
@@ -266,4 +403,14 @@ else
         <= 20 => "🟢",
         _ => "⚪"
     };
+
+    private async Task RequestReview()
+    {
+        if (task == null) return;
+        task.ReviewedByUserId = new List<string>(); // zera as revisões feitas
+        await TaskService.UpdateTaskAsync(task);
+        await LoadTask();
+    }
+
+
 }

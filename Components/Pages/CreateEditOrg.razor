@@ -1,0 +1,118 @@
+@page "/create-org"
+@page "/edit-org/{OrgId:int}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using TaskManager.Models
+@using TaskManager.Services
+@inject OrganizationService OrgService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>@(editingOrg != null ? "Editar Organização" : "Nova Organização")</PageTitle>
+
+<div class="container py-4" style="max-width: 600px;">
+    <h3>@(editingOrg != null ? "✏️ Editar Organização" : "🏢 Nova Organização")</h3>
+
+    <EditForm Model="@model" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Nome *</label>
+            <InputText @bind-Value="model.Name" class="form-control" placeholder="Ex: Equipe Alpha" />
+            <ValidationMessage For="@(() => model.Name)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Descrição</label>
+            <InputTextArea @bind-Value="model.Description" class="form-control" rows="3"
+                           placeholder="Descreva o propósito da organização..." />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Quem pode criar tarefas</label>
+            <InputSelect @bind-Value="model.TaskCreationPolicy" class="form-select">
+                <option value="@TaskCreationPolicy.AllMembers">Todos os membros</option>
+                <option value="@TaskCreationPolicy.AdminsAndOwner">Admins e Owner</option>
+                <option value="@TaskCreationPolicy.OwnerOnly">Somente Owner</option>
+            </InputSelect>
+        </div>
+
+        <div class="mb-4">
+            <div class="form-check">
+                <InputCheckbox @bind-Value="model.AllowJoinRequests" class="form-check-input" id="allowJoin" />
+                <label class="form-check-label" for="allowJoin">
+                    Permitir solicitações de ingresso (organização pública)
+                </label>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                @(editingOrg != null ? "Salvar Alterações" : "Criar Organização")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick='() => Nav.NavigateTo("/organizations")'>
+                Cancelar
+            </button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public int? OrgId { get; set; }
+    private Organization? editingOrg;
+    private Organization model = new();
+    private string? currentUserId;
+    private string? currentUserName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = auth.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        currentUserName = auth.User.Identity?.Name;
+
+        if (OrgId.HasValue)
+        {
+            editingOrg = await OrgService.GetOrganizationByIdAsync(OrgId.Value);
+            if (editingOrg == null)
+            {
+                Nav.NavigateTo("/organizations");
+                return;
+            }
+            // Só owner/admin pode editar
+            var role = await OrgService.GetUserRoleAsync(OrgId.Value, currentUserId!);
+            if (role is not (MemberRole.Owner or MemberRole.Admin))
+            {
+                Nav.NavigateTo("/organizations");
+                return;
+            }
+            model = new Organization
+            {
+                Id = editingOrg.Id,
+                Name = editingOrg.Name,
+                Description = editingOrg.Description,
+                AllowJoinRequests = editingOrg.AllowJoinRequests,
+                TaskCreationPolicy = editingOrg.TaskCreationPolicy
+            };
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (currentUserId == null) return;
+
+        if (editingOrg != null)
+        {
+            await OrgService.UpdateOrganizationAsync(model);
+            Nav.NavigateTo($"/org/{model.Id}");
+        }
+        else
+        {
+            var created = await OrgService.CreateOrganizationAsync(
+                model, currentUserId, currentUserName ?? currentUserId);
+            Nav.NavigateTo($"/org/{created.Id}");
+        }
+    }
+}

@@ -5,6 +5,9 @@
 @using TaskManager.Services
 @using TaskManager.Models
 @inject TaskService TaskService
+@inject NavigationManager Nav
+@inject OrganizationService OrgService
+
 @inject AuthenticationStateProvider AuthStateProvider
 
 @rendermode InteractiveServer
@@ -12,6 +15,14 @@
 <PageTitle>Tarefas</PageTitle>
 
 <h1>Gerenciador de Tarefas</h1>
+@if (orgId.HasValue)
+{
+    <div class="alert alert-primary d-flex justify-content-between align-items-center py-2 mb-3">
+        <span>🏢 Exibindo tasks de <strong>@orgName</strong></span>
+        <a href="/org/@orgId" class="btn btn-sm btn-outline-primary">Ver Painel da Org</a>
+    </div>
+}
+
 
 <!-- FILTROS -->
 <div class="card mb-4">
@@ -59,9 +70,10 @@
 
 <!-- BOTÃO NOVA TAREFA -->
 <div class="mb-3">
-    <a href="/add-task" class="btn btn-success">
+    <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success">
         <i class="bi bi-plus-circle"></i> Nova Tarefa
     </a>
+
 </div>
 
 @if (filteredTasks == null)
@@ -136,22 +148,71 @@ else
                     <div class="col-md-3">
                         <strong>@task.Category</strong>
                     </div>
+                    @* Tags *@
                     <div class="col-md-3">
-                        Tags: @string.Join(" ", task.Tags.Take(3).Select(t =>
-                                                                                                                                                                                                                                                                                                                            $"<span class='badge bg-secondary ms-1'>#{t}</span>"))
-                        @(task.Tags.Count > 3 ? "..." : "")
+                        Tags:
+                        @foreach (var tag in task.Tags.Take(3))
+                        {
+                            <span class="badge bg-secondary ms-1">@tag</span>
+                        }
+                        @if (task.Tags.Count > 3)
+                        {
+                            <span class="text-muted">...</span>
+                        }
                     </div>
-                    <div class="col-md-3">
-                        Criada: @task.CreatedAt.ToString("dd/MM/yy HH:mm")
-                    </div>
+
+                    @* Data de vencimento *@
                     @if (task.DueDate.HasValue)
                     {
                         <div class="col-md-3">
-                            Vence: @task.DueDate.Value.ToString("dd/MM")
-                            @(task.DueDate.Value < DateTime.Now ?
-                                "<span class='badge bg-danger ms-1'>Atrasada</span>" : "")
+                            Vence @task.DueDate.Value.ToLocalTime().ToString("dd/MM")
+                            @if (task.DueDate.Value < DateTime.Now)
+                            {
+                                <span class="badge bg-danger ms-1">Atrasada</span>
+                            }
                         </div>
                     }
+
+                    @* Assignees *@
+                    @if (task.AssignedToUserIds?.Any() == true)
+                    {
+                        <div class="col-md-3">
+                            <span class="text-muted small">👤 </span>
+                            @foreach (var uid in task.AssignedToUserIds.Take(3))
+                            {
+                                <span class="badge bg-primary ms-1 small">@uid[..8]</span>
+                            }
+                            @if (task.AssignedToUserIds.Count > 3)
+                            {
+                                <span class="badge bg-secondary ms-1 small">+@(task.AssignedToUserIds.Count - 3)</span>
+                            }
+                        </div>
+                    }
+
+                    @* Revisão pendente *@
+                    @if (task.NeedsReview > 0 && task.ReviewByUserId?.Any() == true)
+                    {
+                        var reviewed = task.ReviewedByUserId?.Count ?? 0;
+                        var reviewComplete = reviewed >= task.NeedsReview;
+                        <div class="col-md-3">
+                            @if (reviewComplete)
+                            {
+                                <span class="badge bg-success small">✅ Revisão completa</span>
+                            }
+                            else if (task.ReviewByUserId.Contains(currentUserId ?? ""))
+                            {
+                                <span class="badge bg-warning text-dark small">🔍 Sua revisão pendente</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info text-dark small">🔍 @reviewed/@task.NeedsReview revisões</span>
+                            }
+                        </div>
+                    }
+
+                    <div class="col-md-3">
+                        Criada: @task.CreatedAt.ToString("dd/MM/yy HH:mm")
+                    </div>
                 </div>
                 @if (task.Comments?.Any() == true)
                 {
@@ -202,39 +263,57 @@ else
     private string statusFilter = "";
     private string tagFilter = "";
     private HashSet<int> pendingDependencies = new();
+    private int? orgId;
+    private string? orgName;
+    private string? currentUserId;
+
 
 
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var userId = authState.User.Identity?.Name;
+        var userId = authState.User.FindFirst(
+        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value; // GUID do Identity
+        currentUserId = userId;
 
-        allTasks = await TaskService.GetAllTasksAsync(userId);
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
+            orgId = parsedOrgId;
+        if (orgId.HasValue)
+        {
+            var org = await OrgService.GetOrganizationByIdAsync(orgId.Value);
+            orgName = org?.Name ?? $"Org #{orgId}";
+        }
+
+
+        allTasks = await TaskService.GetAllTasksAsync(userId, orgId);
         await LoadPendingDependencies();
         ApplyFilters();
     }
 
+
     private void ApplyFilters()
     {
         filteredTasks = allTasks?
-            .Where(t => t.Priority <= maxPriority)
-            .Where(t => string.IsNullOrEmpty(selectedCategory) || t.Category == selectedCategory)
-            .Where(t => string.IsNullOrEmpty(statusFilter) ||
-                       (statusFilter == "pending" && !t.IsCompleted) ||
-                       (statusFilter == "completed" && t.IsCompleted))
-            .Where(t => string.IsNullOrEmpty(tagFilter) ||
-                       t.Tags.Any(tag => tag.Contains(tagFilter, StringComparison.OrdinalIgnoreCase)))
-            .OrderByDescending(t => t.Priority)
-            .ThenBy(t => t.DueDate ?? DateTime.MaxValue)
-            .ToList();
+        .Where(t => t.Priority <= maxPriority)
+        .Where(t => string.IsNullOrEmpty(selectedCategory) || t.Category == selectedCategory)
+        .Where(t => string.IsNullOrEmpty(statusFilter) ||
+        (statusFilter == "pending" && !t.IsCompleted) ||
+        (statusFilter == "completed" && t.IsCompleted))
+        .Where(t => string.IsNullOrEmpty(tagFilter) ||
+        t.Tags.Any(tag => tag.Contains(tagFilter, StringComparison.OrdinalIgnoreCase)))
+        .OrderByDescending(t => t.Priority)
+        .ThenBy(t => t.DueDate ?? DateTime.MaxValue)
+        .ToList();
     }
 
     private string GetPriorityEmoji(int priority) =>
-        priority switch { <= 2 => "🔴", <= 5 => "🟠", <= 10 => "🟡", <= 20 => "🟢", _ => "⚪" };
+    priority switch { <= 2 => "🔴", <= 5 => "🟠", <= 10 => "🟡", <= 20 => "🟢", _ => "⚪" };
 
     private string GetPriorityClass(int priority) =>
-        priority switch { <= 2 => "bg-danger", <= 5 => "bg-warning", <= 10 => "bg-info", _ => "bg-success" };
+    priority switch { <= 2 => "bg-danger", <= 5 => "bg-warning", <= 10 => "bg-info", _ => "bg-success" };
 
     private bool showDeleteConfirm = false;
     private int taskToDeleteId = 0;
@@ -259,13 +338,14 @@ else
 
     private async Task ToggleComplete(int id)
     {
-        if (pendingDependencies.Contains(id))
-            return;
-
+        if (pendingDependencies.Contains(id)) return;
         await TaskService.ToggleCompleteAsync(id);
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var userId = authState.User.Identity?.Name;
-        allTasks = await TaskService.GetAllTasksAsync(userId);
+        var userId = authState.User.FindFirst(
+        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        allTasks = await TaskService.GetAllTasksAsync(userId, orgId);
         ApplyFilters();
         await LoadPendingDependencies();
     }

@@ -1,0 +1,156 @@
+@page "/organizations"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using TaskManager.Models
+@using TaskManager.Services
+@inject OrganizationService OrgService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>Organizações</PageTitle>
+
+<div class="container py-4" style="max-width: 800px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>🏢 Minhas Organizações</h3>
+        <div class="d-flex gap-2">
+            <a href="/org-invites" class="btn btn-outline-primary btn-sm">
+                📬 Convites
+                @if (pendingInvites > 0)
+                {
+                    <span class="badge bg-danger ms-1">@pendingInvites</span>
+                }
+            </a>
+            <a href="/create-org" class="btn btn-primary btn-sm">+ Nova Organização</a>
+        </div>
+    </div>
+
+    @if (myOrgs.Any())
+    {
+        <div class="row g-3 mb-4">
+            @foreach (var org in myOrgs)
+            {
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">@org.Name</h5>
+                            @if (!string.IsNullOrWhiteSpace(org.Description))
+                            {
+                                <p class="card-text text-muted small">@org.Description</p>
+                            }
+                            <div class="d-flex gap-2 mt-2">
+                                <span class="badge bg-secondary">
+                                    👥 @org.Members.Count membro(s)
+                                </span>
+                                @if (org.AllowJoinRequests)
+                                {
+                                    <span class="badge bg-info text-dark">🔓 Aberta</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">🔒 Fechada</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="card-footer d-flex gap-2">
+                            <a href="/org/@org.Id" class="btn btn-sm btn-outline-primary">Ver Painel</a>
+                            <a href="/tasks?orgId=@org.Id" class="btn btn-sm btn-outline-secondary">Ver Tasks</a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            Você ainda não pertence a nenhuma organização.
+            <a href="/create-org">Crie uma</a> ou busque uma aberta abaixo.
+        </div>
+    }
+
+    <!-- Buscar organizações abertas -->
+    <h5 class="mb-3">🔍 Buscar Organizações</h5>
+    <div class="input-group mb-3">
+        <input type="text" class="form-control" placeholder="Nome da organização..."
+               @bind="searchQuery" @bind:event="oninput" @onkeyup="Search" />
+        <button class="btn btn-outline-secondary" @onclick="Search">Buscar</button>
+    </div>
+
+    @if (searchResults.Any())
+    {
+        <ul class="list-group">
+            @foreach (var org in searchResults)
+            {
+                var alreadyMember = myOrgs.Any(m => m.Id == org.Id);
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@org.Name</strong>
+                        @if (!string.IsNullOrWhiteSpace(org.Description))
+                        {
+                            <small class="text-muted ms-2">@org.Description</small>
+                        }
+                    </div>
+                    @if (alreadyMember)
+                    {
+                        <span class="badge bg-success">✅ Membro</span>
+                    }
+                    else if (requestedIds.Contains(org.Id))
+                    {
+                        <span class="badge bg-warning text-dark">⏳ Solicitado</span>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-primary" @onclick="() => RequestJoin(org.Id)">
+                            Solicitar Ingresso
+                        </button>
+                    }
+                </li>
+            }
+        </ul>
+    }
+    else if (searched)
+    {
+        <p class="text-muted small">Nenhuma organização aberta encontrada.</p>
+    }
+</div>
+
+@code {
+    private List<Organization> myOrgs = new();
+    private List<Organization> searchResults = new();
+    private HashSet<int> requestedIds = new();
+    private string searchQuery = "";
+    private bool searched = false;
+    private int pendingInvites = 0;
+    private string? currentUserId;
+    private string? currentUserName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = auth.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        currentUserName = auth.User.Identity?.Name;
+
+        if (currentUserId == null) return;
+
+        myOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId);
+        var invites = await OrgService.GetPendingInvitesForUserAsync(currentUserId);
+        pendingInvites = invites.Count(i => i.InitiatedByUserId != i.TargetUserId);
+    }
+
+    private async Task Search()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) return;
+        searchResults = await OrgService.SearchOrganizationsAsync(searchQuery);
+        searched = true;
+    }
+
+    private async Task RequestJoin(int orgId)
+    {
+        if (currentUserId == null) return;
+        await OrgService.RequestJoinAsync(orgId, currentUserId, currentUserName ?? currentUserId);
+        requestedIds.Add(orgId);
+    }
+}

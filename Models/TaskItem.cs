@@ -18,7 +18,7 @@ public class TaskItem
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DueDate { get; set; }
 
-    [Range(1, int.MaxValue, ErrorMessage = "O valor deve ser maior ou igual a 1.")] 
+    [Range(1, int.MaxValue, ErrorMessage = "O valor deve ser maior ou igual a 1.")]
     public int Priority { get; set; } = 1; // Quanto menor o número, maior a prioridade
     public List<string> Tags { get; set; } = new List<string>();
     public string Category { get; set; } = "Geral";
@@ -32,7 +32,9 @@ public class TaskItem
     public List<TaskItem>? DependsOnTasks { get; set; } = new List<TaskItem>(); // Tarefas das quais esta tarefa depende
 
     public string AuthorUserId { get; set; } = string.Empty; // ID do usuário que criou a tarefa
-    public string? AssignedToUserId { get; set; } // ID do usuário ao qual a tarefa está atribuída
+    public List<string> AssignedToUserIds { get; set; } = new(); // Múltiplos responsáveis
+    public int? OrganizationId { get; set; } // Nulo = tarefa pessoal
+
     [Range(0, 20, ErrorMessage = "O valor deve estar entre 0 e 20.")]
     public int NeedsReview { get; set; } = 0; // Quantidade de vezes que a tarefa precisa ser revisada antes de ser considerada completa
 

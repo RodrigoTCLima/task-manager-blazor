@@ -1,0 +1,82 @@
+@page "/org-invites"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using TaskManager.Models
+@using TaskManager.Services
+@inject OrganizationService OrgService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>Convites</PageTitle>
+
+<div class="container py-4" style="max-width: 700px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>📬 Meus Convites</h3>
+        <a href="/organizations" class="btn btn-sm btn-outline-secondary">← Voltar</a>
+    </div>
+
+    @if (!invites.Any())
+    {
+        <div class="alert alert-info">Nenhum convite pendente.</div>
+    }
+    else
+    {
+        <ul class="list-group">
+            @foreach (var invite in invites)
+            {
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>@invite.Organization?.Name</strong>
+                            <small class="text-muted ms-2">
+                                convidado por @invite.InitiatedByUserName
+                                em @invite.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")
+                            </small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-success"
+                                    @onclick="() => Resolve(invite.Id, true)">
+                                ✅ Aceitar
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => Resolve(invite.Id, false)">
+                                ❌ Recusar
+                            </button>
+                        </div>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private List<OrganizationInvite> invites = new();
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = auth.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (currentUserId == null) return;
+
+        var all = await OrgService.GetPendingInvitesForUserAsync(currentUserId);
+        // Apenas convites recebidos (não solicitações próprias)
+        invites = all.Where(i => i.InitiatedByUserId != i.TargetUserId).ToList();
+    }
+
+    private async Task Resolve(int inviteId, bool accept)
+    {
+        await OrgService.ResolveInviteAsync(inviteId, accept, currentUserId!);
+        if (accept)
+            Nav.NavigateTo("/organizations");
+        else
+        {
+            var all = await OrgService.GetPendingInvitesForUserAsync(currentUserId!);
+            invites = all.Where(i => i.InitiatedByUserId != i.TargetUserId).ToList();
+        }
+    }
+}

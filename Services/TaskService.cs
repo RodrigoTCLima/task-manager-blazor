@@ -15,20 +15,29 @@ public class TaskService
     {
         _context = context;
     }
-    public async Task<List<TaskItem>> GetAllTasksAsync(string? userId = null)
+    public async Task<List<TaskItem>> GetAllTasksAsync(string? userId = null, int? orgId = null)
     {
         IQueryable<TaskItem> query = _context.Tasks
             .Include(t => t.Comments)
             .AsNoTracking();
 
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(t => t.AuthorUserId == userId);
+        if (orgId.HasValue)
+        {
+            query = query.Where(t => t.OrganizationId == orgId.Value);
+        }
+        else if (!string.IsNullOrEmpty(userId))
+        {
+            query = query.Where(t => t.AuthorUserId == userId
+                                  && (t.OrganizationId == null || t.OrganizationId == 0));
+        }
 
         return await query
             .OrderBy(t => t.Priority)
             .ThenBy(t => t.CreatedAt)
             .ToListAsync();
     }
+
+
 
 
 
@@ -66,7 +75,8 @@ public class TaskService
         existing.IsCompleted = task.IsCompleted;
         existing.Tags = task.Tags;
         existing.DependencyOnTaskIds = task.DependencyOnTaskIds;
-        existing.AssignedToUserId = task.AssignedToUserId;
+        existing.AssignedToUserIds = task.AssignedToUserIds;
+        existing.OrganizationId = task.OrganizationId;
         existing.NeedsReview = task.NeedsReview;
         existing.ReviewByUserId = task.ReviewByUserId;
         existing.ReviewedByUserId = task.ReviewedByUserId;

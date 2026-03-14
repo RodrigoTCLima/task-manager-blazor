@@ -1,0 +1,306 @@
+@page "/org/{OrgId:int}"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using TaskManager.Models
+@using TaskManager.Services
+@inject OrganizationService OrgService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>@(org?.Name ?? "Organização")</PageTitle>
+
+@if (org == null)
+{
+    <p>Carregando...</p>
+}
+else
+{
+    <div class="container py-4" style="max-width: 900px;">
+
+        <!-- Cabeçalho -->
+        <div class="d-flex justify-content-between align-items-start mb-4">
+            <div>
+                <h3>🏢 @org.Name</h3>
+                @if (!string.IsNullOrWhiteSpace(org.Description))
+                {
+                    <p class="text-muted">@org.Description</p>
+                }
+                <div class="d-flex gap-2">
+                    <span class="badge bg-secondary">
+                        Política: @org.TaskCreationPolicy
+                    </span>
+                    @if (org.AllowJoinRequests)
+                    {
+                        <span class="badge bg-info text-dark">🔓 Aberta</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">🔒 Fechada</span>
+                    }
+                </div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap justify-content-end">
+                @if (currentRole is MemberRole.Owner or MemberRole.Admin)
+                {
+                    <a href="/edit-org/@org.Id" class="btn btn-sm btn-outline-secondary">✏️ Editar</a>
+                }
+                <a href="/tasks?orgId=@org.Id" class="btn btn-sm btn-outline-primary">📋 Ver Tasks</a>
+                @if (currentRole != MemberRole.Owner)
+                {
+                    <button class="btn btn-sm btn-outline-danger" @onclick="LeaveOrg">Sair da Org</button>
+                }
+                @if (currentRole == MemberRole.Owner)
+                {
+                    <button class="btn btn-sm btn-danger" @onclick="() => showDeleteConfirm = true">🗑️ Deletar Org</button>
+                }
+            </div>
+        </div>
+
+        @if (showDeleteConfirm)
+        {
+            <div class="alert alert-danger d-flex justify-content-between align-items-center">
+                <span>Tem certeza? Esta ação é irreversível e deletará todas as tasks da org.</span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-danger" @onclick="DeleteOrg">Confirmar</button>
+                    <button class="btn btn-sm btn-secondary" @onclick="() => showDeleteConfirm = false">Cancelar</button>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(feedback))
+        {
+            <div class="alert alert-info">@feedback</div>
+        }
+
+        <!-- Membros -->
+        <h5 class="mt-2 mb-3">👥 Membros</h5>
+        <div class="table-responsive mb-4">
+            <table class="table table-sm table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Papel</th>
+                        <th>Entrou em</th>
+                        @if (currentRole is MemberRole.Owner or MemberRole.Admin)
+                        {
+                            <th>Ações</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var member in org.Members)
+                    {
+                        <tr>
+                            <td>@member.UserName</td>
+                            <td>
+                                <span class="badge @RoleBadge(member.Role)">@member.Role</span>
+                            </td>
+                            <td>@member.JoinedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                            @if (currentRole is MemberRole.Owner or MemberRole.Admin)
+                            {
+                                <td>
+                                    @if (member.UserId != currentUserId && member.Role != MemberRole.Owner)
+                                    {
+                                        <div class="d-flex gap-1">
+                                            @if (currentRole == MemberRole.Owner)
+                                            {
+                                                @if (member.Role == MemberRole.Admin)
+                                                {
+                                                    <button class="btn btn-xs btn-outline-secondary"
+                                                            @onclick="() => ChangeRole(member.UserId, MemberRole.Member)">
+                                                        ↓ Member
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-xs btn-outline-primary"
+                                                            @onclick="() => ChangeRole(member.UserId, MemberRole.Admin)">
+                                                        ↑ Admin
+                                                    </button>
+                                                }
+                                                <button class="btn btn-xs" style="border: 1px solid #ffc107; color: #000; background: #fff;"
+                                                    onmouseover="this.style.background='#ffc107'"
+                                                    onmouseout="this.style.background='#fff'"
+                                                    @onclick="() => TransferOwnership(member.UserId)">
+                                                    👑 Owner
+                                                </button>
+
+                                            }
+                                            <button class="btn btn-xs btn-outline-danger"
+                                                    @onclick="() => KickMember(member.UserId)">
+                                                Remover
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Convidar usuário -->
+        @if (currentRole is MemberRole.Owner or MemberRole.Admin)
+        {
+            <h5 class="mb-3">📨 Convidar Usuário</h5>
+            <div class="input-group mb-2" style="max-width: 500px;">
+                <input type="text" class="form-control" placeholder="Buscar por username..."
+                       @bind="inviteSearch" @bind:event="oninput" @onkeyup="SearchUsers" />
+            </div>
+            @if (userResults.Any())
+            {
+                <ul class="list-group mb-4" style="max-width: 500px;">
+                    @foreach (var user in userResults)
+                    {
+                        var alreadyMember = org.Members.Any(m => m.UserId == user.Id);
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            @user.UserName
+                            @if (alreadyMember)
+                            {
+                                <span class="badge bg-success">Já é membro</span>
+                            }
+                            else if (invitedIds.Contains(user.Id))
+                            {
+                                <span class="badge bg-warning text-dark">Convite enviado</span>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => InviteUser(user.Id, user.UserName!)">
+                                    Convidar
+                                </button>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+
+            <!-- Solicitações pendentes -->
+            @if (pendingRequests.Any())
+            {
+                <h5 class="mb-3">📥 Solicitações de Ingresso</h5>
+                <ul class="list-group mb-4" style="max-width: 500px;">
+                    @foreach (var req in pendingRequests)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            @req.TargetUserName
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-success"
+                                        @onclick="() => ResolveRequest(req.Id, true)">
+                                    ✅ Aceitar
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => ResolveRequest(req.Id, false)">
+                                    ❌ Recusar
+                                </button>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int OrgId { get; set; }
+
+    private Organization? org;
+    private MemberRole? currentRole;
+    private string? currentUserId;
+    private string? currentUserName;
+
+    private string inviteSearch = "";
+    private List<IdentityUser> userResults = new();
+    private HashSet<string> invitedIds = new();
+
+    private List<OrganizationInvite> pendingRequests = new();
+    private bool showDeleteConfirm = false;
+    private string feedback = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = auth.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        currentUserName = auth.User.Identity?.Name;
+
+        if (currentUserId == null) { Nav.NavigateTo("/organizations"); return; }
+
+        await LoadOrg();
+    }
+
+    private async Task LoadOrg()
+    {
+        org = await OrgService.GetOrganizationByIdAsync(OrgId);
+        if (org == null) { Nav.NavigateTo("/organizations"); return; }
+
+        currentRole = await OrgService.GetUserRoleAsync(OrgId, currentUserId!);
+        if (currentRole == null) { Nav.NavigateTo("/organizations"); return; }
+
+        if (currentRole is MemberRole.Owner or MemberRole.Admin)
+            pendingRequests = await OrgService.GetPendingRequestsForOrgAsync(OrgId);
+    }
+
+    private async Task SearchUsers()
+    {
+        if (string.IsNullOrWhiteSpace(inviteSearch)) { userResults = new(); return; }
+        userResults = await OrgService.SearchUsersAsync(inviteSearch);
+    }
+
+    private async Task InviteUser(string userId, string userName)
+    {
+        await OrgService.SendInviteAsync(OrgId, userId, userName, currentUserId!, currentUserName!);
+        invitedIds.Add(userId);
+        feedback = $"Convite enviado para {userName}.";
+    }
+
+    private async Task ResolveRequest(int inviteId, bool accept)
+    {
+        await OrgService.ResolveInviteAsync(inviteId, accept, currentUserId!);
+        await LoadOrg();
+        feedback = accept ? "Membro adicionado." : "Solicitação recusada.";
+    }
+
+    private async Task ChangeRole(string userId, MemberRole role)
+    {
+        await OrgService.SetMemberRoleAsync(OrgId, userId, role);
+        await LoadOrg();
+    }
+
+    private async Task TransferOwnership(string newOwnerId)
+    {
+        await OrgService.TransferOwnershipAsync(OrgId, currentUserId!, newOwnerId);
+        await LoadOrg();
+        feedback = "Ownership transferido.";
+    }
+
+    private async Task KickMember(string userId)
+    {
+        await OrgService.RemoveMemberAsync(OrgId, userId);
+        await LoadOrg();
+        feedback = "Membro removido.";
+    }
+
+    private async Task LeaveOrg()
+    {
+        await OrgService.RemoveMemberAsync(OrgId, currentUserId!);
+        Nav.NavigateTo("/organizations");
+    }
+
+    private async Task DeleteOrg()
+    {
+        await OrgService.DeleteOrganizationAsync(OrgId);
+        Nav.NavigateTo("/organizations");
+    }
+
+    private string RoleBadge(MemberRole role) => role switch
+    {
+        MemberRole.Owner => "bg-danger",
+        MemberRole.Admin => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+}
