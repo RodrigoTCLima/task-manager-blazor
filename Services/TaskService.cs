@@ -12,9 +12,12 @@ namespace TaskManager.Services;
 public class TaskService
 {
     private readonly AppDbContext _context;
-    public TaskService(AppDbContext context)
+    private readonly NotificationService _notificationService;
+
+    public TaskService(AppDbContext context, NotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
     public async Task<List<TaskItem>> GetAllTasksAsync(string? userId = null, int? orgId = null)
     {
@@ -58,7 +61,10 @@ public class TaskService
         var existing = await _context.Tasks.FindAsync(task.Id);
         if (existing == null) return;
 
-        // Copiar valores para o objeto já rastreado
+        var existingReviewedCount = existing.ReviewedByUserId?.Count ?? 0;
+        var newReviewedCount = task.ReviewedByUserId?.Count ?? 0;
+        var wasReviewed = existingReviewedCount == 0 && newReviewedCount > 0;
+
         existing.Title = task.Title;
         existing.Description = task.Description;
         existing.Priority = task.Priority;
@@ -78,7 +84,22 @@ public class TaskService
         existing.ReviewedByUserId = task.ReviewedByUserId;
 
         await _context.SaveChangesAsync();
+
+        // Notifica responsáveis quando a task for revisada/aprovada
+        if (wasReviewed && task.AssignedToUserIds != null)
+        {
+            foreach (var uid in task.AssignedToUserIds)
+            {
+                await _notificationService.CreateAsync(
+                    userId: uid,
+                    message: $"A tarefa \"{task.Title}\" foi revisada e aprovada",
+                    type: NotificationType.TaskReviewed,
+                    link: $"/task/{task.Id}"
+                );
+            }
+        }
     }
+
 
     public async Task DeleteTaskAsync(int id)
     {
@@ -104,8 +125,35 @@ public class TaskService
     {
         _context.Comments.Add(comment);
         await _context.SaveChangesAsync();
+
+        var task = await _context.Tasks.FindAsync(comment.TaskItemId);
+        if (task != null)
+        {
+            var toNotify = new HashSet<string>();
+
+            if (!string.IsNullOrEmpty(task.AuthorUserId))
+                toNotify.Add(task.AuthorUserId);
+
+            if (task.AssignedToUserIds != null)
+                foreach (var uid in task.AssignedToUserIds)
+                    toNotify.Add(uid);
+
+            toNotify.Remove(comment.AuthorUserId); // não notifica quem comentou
+
+            foreach (var uid in toNotify)
+            {
+                await _notificationService.CreateAsync(
+                    userId: uid,
+                    message: $"Novo comentário na tarefa \"{task.Title}\"",
+                    type: NotificationType.TaskCommented,
+                    link: $"/task/{task.Id}"
+                );
+            }
+        }
+
         return comment;
     }
+
 
     // Deletar comentário
     public async Task DeleteCommentAsync(int commentId)
@@ -118,13 +166,30 @@ public class TaskService
         }
     }
 
-    public async Task ToggleCompleteAsync(int id)
+    public async Task ToggleCompleteAsync(int id, string completedByUserId)
     {
         var task = await _context.Tasks.FindAsync(id);
-        if (task != null)
+        if (task == null) return;
+
+        task.IsCompleted = !task.IsCompleted;
+        await _context.SaveChangesAsync();
+
+        // Notifica os outros responsáveis quando a task for concluída
+        if (task.IsCompleted && task.AssignedToUserIds != null)
         {
-            task.IsCompleted = !task.IsCompleted;
-            await _context.SaveChangesAsync();
+            var others = task.AssignedToUserIds
+                .Where(uid => uid != completedByUserId)
+                .ToList();
+
+            foreach (var uid in others)
+            {
+                await _notificationService.CreateAsync(
+                    userId: uid,
+                    message: $"A tarefa \"{task.Title}\" foi marcada como concluída",
+                    type: NotificationType.TaskCompleted,
+                    link: $"/task/{task.Id}"
+                );
+            }
         }
     }
 

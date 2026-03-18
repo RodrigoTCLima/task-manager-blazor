@@ -9,11 +9,13 @@ public class OrganizationService
 {
     private readonly AppDbContext _context;
     private readonly UserManager<IdentityUser> _userManager;
+    private readonly NotificationService _notificationService;
 
-    public OrganizationService(AppDbContext context, UserManager<IdentityUser> userManager)
+    public OrganizationService(AppDbContext context, UserManager<IdentityUser> userManager, NotificationService notificationService)
     {
         _context = context;
         _userManager = userManager;
+        _notificationService = notificationService;
     }
 
     // ── ORGANIZAÇÕES ────────────────────────────────────────────
@@ -29,7 +31,6 @@ public class OrganizationService
             .ToListAsync();
     }
 
-
     public async Task<Organization?> GetOrganizationByIdAsync(int id)
     {
         return await _context.Organizations
@@ -42,8 +43,7 @@ public class OrganizationService
     public async Task<List<Organization>> SearchOrganizationsAsync(string query)
     {
         return await _context.Organizations
-            .Where(o => o.AllowJoinRequests &&
-                        o.Name.Contains(query))
+            .Where(o => o.AllowJoinRequests && o.Name.Contains(query))
             .AsNoTracking()
             .ToListAsync();
     }
@@ -55,7 +55,6 @@ public class OrganizationService
         _context.Organizations.Add(org);
         await _context.SaveChangesAsync();
 
-        // Adicionar criador como Owner
         _context.OrganizationMembers.Add(new OrganizationMember
         {
             OrganizationId = org.Id,
@@ -121,7 +120,17 @@ public class OrganizationService
         if (member == null) return;
         _context.OrganizationMembers.Remove(member);
         await _context.SaveChangesAsync();
+
+        // Notifica o usuário removido
+        var org = await _context.Organizations.FindAsync(orgId);
+        await _notificationService.CreateAsync(
+            userId: userId,
+            message: $"Você foi removido da organização \"{org?.Name}\"",
+            type: NotificationType.OrgMemberRemoved,
+            link: "/organizations"
+        );
     }
+
 
     public async Task TransferOwnershipAsync(int orgId, string currentOwnerId, string newOwnerId)
     {
@@ -155,7 +164,7 @@ public class OrganizationService
     {
         return await _context.OrganizationInvites
             .Where(i => i.OrganizationId == orgId && i.Status == InviteStatus.Pending
-                        && i.InitiatedByUserId == i.TargetUserId) // solicitação = usuário convidou a si mesmo
+                        && i.InitiatedByUserId == i.TargetUserId)
             .AsNoTracking()
             .ToListAsync();
     }
@@ -163,11 +172,12 @@ public class OrganizationService
     public async Task SendInviteAsync(int orgId, string targetUserId, string targetUserName,
                                       string invitedByUserId, string invitedByUserName)
     {
-        // Evitar duplicata
         var exists = await _context.OrganizationInvites.AnyAsync(i =>
             i.OrganizationId == orgId && i.TargetUserId == targetUserId &&
             i.Status == InviteStatus.Pending);
         if (exists) return;
+
+        var org = await _context.Organizations.FindAsync(orgId);
 
         _context.OrganizationInvites.Add(new OrganizationInvite
         {
@@ -180,6 +190,14 @@ public class OrganizationService
             CreatedAt = DateTime.UtcNow
         });
         await _context.SaveChangesAsync();
+
+        // Notifica o usuário convidado
+        await _notificationService.CreateAsync(
+            userId: targetUserId,
+            message: $"{invitedByUserName} convidou você para a organização \"{org?.Name}\"",
+            type: NotificationType.OrgInviteReceived,
+            link: "/organizations"
+        );
     }
 
     public async Task RequestJoinAsync(int orgId, string userId, string userName)
@@ -197,18 +215,29 @@ public class OrganizationService
             OrganizationId = orgId,
             TargetUserId = userId,
             TargetUserName = userName,
-            InitiatedByUserId = userId, // o próprio usuário solicitou
+            InitiatedByUserId = userId,
             InitiatedByUserName = userName,
             Status = InviteStatus.Pending,
             CreatedAt = DateTime.UtcNow
         });
         await _context.SaveChangesAsync();
+
+        // Notifica o dono da org
+        await _notificationService.CreateAsync(
+            userId: org.OwnerId,
+            message: $"{userName} solicitou entrada na organização \"{org.Name}\"",
+            type: NotificationType.OrgApplicationReceived,
+            link: $"/org/{orgId}"
+        );
     }
 
     public async Task ResolveInviteAsync(int inviteId, bool accept, string resolvedByUserId)
     {
         var invite = await _context.OrganizationInvites.FindAsync(inviteId);
         if (invite == null || invite.Status != InviteStatus.Pending) return;
+
+        var org = await _context.Organizations.FindAsync(invite.OrganizationId);
+        var isApplication = invite.InitiatedByUserId == invite.TargetUserId;
 
         invite.Status = accept ? InviteStatus.Accepted : InviteStatus.Rejected;
         invite.ResolvedAt = DateTime.UtcNow;
@@ -230,6 +259,32 @@ public class OrganizationService
         }
 
         await _context.SaveChangesAsync();
+
+        // Notificações de retorno
+        if (isApplication)
+        {
+            // Candidatura: notifica o candidato sobre o resultado
+            await _notificationService.CreateAsync(
+                userId: invite.TargetUserId,
+                message: accept
+                    ? $"Sua solicitação para \"{org?.Name}\" foi aceita!"
+                    : $"Sua solicitação para \"{org?.Name}\" foi recusada.",
+                type: accept ? NotificationType.OrgApplicationAccepted : NotificationType.OrgApplicationDeclined,
+                link: accept ? "/organizations" : null
+            );
+        }
+        else
+        {
+            // Convite: notifica o dono sobre a resposta do convidado
+            await _notificationService.CreateAsync(
+                userId: invite.InitiatedByUserId,
+                message: accept
+                    ? $"{invite.TargetUserName} aceitou o convite para \"{org?.Name}\""
+                    : $"{invite.TargetUserName} recusou o convite para \"{org?.Name}\"",
+                type: accept ? NotificationType.OrgInviteAccepted : NotificationType.OrgInviteDeclined,
+                link: $"/org/{invite.OrganizationId}"
+            );
+        }
     }
 
     // ── HELPERS ──────────────────────────────────────────────────

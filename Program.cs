@@ -22,6 +22,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<TaskService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<OrganizationService>();
+builder.Services.AddScoped<NotificationService>();
 
 var app = builder.Build();
 

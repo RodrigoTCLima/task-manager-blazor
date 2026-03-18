@@ -13,6 +13,8 @@ public class AppDbContext : IdentityDbContext
     public DbSet<Organization> Organizations { get; set; }
     public DbSet<OrganizationMember> OrganizationMembers { get; set; }
     public DbSet<OrganizationInvite> OrganizationInvites { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

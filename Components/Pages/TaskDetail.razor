@@ -370,13 +370,14 @@ else
 
     private async Task ToggleMainTask()
     {
-        await TaskService.ToggleCompleteAsync(task!.Id);
+        await TaskService.ToggleCompleteAsync(task.Id, currentUserId!);
+
         await LoadTask();
     }
 
     private async Task ToggleDependencyTask(int depId)
     {
-        await TaskService.ToggleCompleteAsync(depId);
+        await TaskService.ToggleCompleteAsync(depId, currentUserId!);
         var wasBlocked = hasPendingDeps;
         await LoadTask();
 

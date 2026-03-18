@@ -473,7 +473,7 @@ t.DueDate.Value.ToLocalTime().Date <= today.AddDays(7)),
     private async Task ToggleComplete(int id)
     {
         if (pendingDependencies.Contains(id)) return;
-        await TaskService.ToggleCompleteAsync(id);
+        await TaskService.ToggleCompleteAsync(id, currentUserId!);
         allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
         await LoadPendingDependencies();
         ApplyFilters();
