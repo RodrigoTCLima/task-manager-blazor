@@ -13,234 +13,270 @@
 
 @rendermode InteractiveServer
 
-
 <PageTitle>@(editingTask != null ? "Editar Tarefa" : "Nova Tarefa")</PageTitle>
 
-<h3>@(editingTask != null ? "Editar Tarefa" : "Nova Tarefa")</h3>
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi @(editingTask != null ? "bi-pencil-square" : "bi-plus-circle") text-primary"></i>
+        <h5 class="mb-0">@(editingTask != null ? "Editar Tarefa" : "Nova Tarefa")</h5>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="Cancel">
+        <i class="bi bi-arrow-left me-1"></i>Voltar
+    </button>
+</div>
+
 @if (!string.IsNullOrEmpty(permissionError))
 {
-    <div class="alert alert-danger">
-        🚫 @permissionError
-        <a href="/organizations" class="btn btn-sm btn-outline-danger ms-3">Ver Organizações</a>
+    <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+        <i class="bi bi-slash-circle"></i>
+        <span>@permissionError</span>
+        <a href="/organizations" class="btn btn-sm btn-outline-danger ms-auto">Ver Organizações</a>
     </div>
 }
-
 
 <EditForm Model="@taskModel" OnValidSubmit="@HandleValidSubmit" FormName="taskForm">
     <DataAnnotationsValidator />
-    <ValidationSummary />
+    <ValidationSummary class="alert alert-danger small" />
 
-    <div class="row mb-3">
-        <div class="col-md-8">
-            <label>Título *</label>
-            <InputText @bind-Value="taskModel.Title" class="form-control" />
-            <ValidationMessage For="@(() => taskModel.Title)" />
-        </div>
-        <div class="col-md-4">
-            <label>Prioridade (número menor = mais urgente)</label>
-            <div class="input-group">
-                <InputNumber @bind-Value="taskModel.Priority" class="form-control" min="1" max="100" />
-                <span class="input-group-text">@GetPriorityEmoji(taskModel.Priority)
-                </span>
-            </div>
-            <div class="form-text">
-                Ex: 1=🔴 Crítica, 5=🟡 Normal, 20=🟢 Baixa
-            </div>
-        </div>
-    </div>
+    <div class="row g-4 align-items-start">
 
-    <div class="row mb-3">
-        <div class="col-md-6">
-            <label>Descrição</label>
-            <InputTextArea @bind-Value="taskModel.Description" class="form-control" rows="3" />
-        </div>
-        <div class="col-md-6">
-            <label>Categoria</label>
-            <InputSelect @bind-Value="taskModel.Category" class="form-select">
-                <option>Geral</option>
-                <option>Trabalho</option>
-                <option>Pessoal</option>
-                <option>Estudos</option>
-                <option>Saúde</option>
-            </InputSelect>
-        </div>
-    </div>
+        <!-- COLUNA ESQUERDA: título, descrição, prazo, dependências -->
+        <div class="col-lg-8 d-flex flex-column gap-4">
 
-    <div class="row mb-3">
-        <div class="col-md-3">
-            <label>Prazo</label>
-            <InputDate @bind-Value="taskModel.DueDate" class="form-control"></InputDate>
-        </div>
-    </div>
-
-    <div class="col-md-3">
-        <label>Alarme</label>
-        <label class="form-check-label">
-            <InputCheckbox @bind-Value="taskModel.HasAlarm" class="form-check-input" />
-            Ativar alarme para esta tarefa
-        </label>
-        @if (taskModel.HasAlarm)
-        {
-            <InputDate @bind-Value="taskModel.AlarmTime" class="form-control mt-1" />
-        }
-    </div>
-
-    <div class="col-md-3">
-        <label>Recorrente</label>
-        <label class="form-check-label">
-            <InputCheckbox @bind-Value="taskModel.IsRecurrent" class="form-check-input" />
-            Tarefa recorrente
-        </label>
-        @if (taskModel.IsRecurrent)
-        {
-            <InputSelect @bind-Value="taskModel.RecurrencePattern" class="form-select mt-1">
-                <option value="Daily">Diária</option>
-                <option value="Weekly">Semanal</option>
-                <option value="Monthly">Mensal</option>
-            </InputSelect>
-        }
-    </div>
-    <div class="col-md-3">
-        <label>Tags (separadas por vírgula)</label>
-        <InputText @bind-Value="@tagsInput" class="form-control" placeholder="ex: urgente,trabalho" />
-    </div>
-
-    <!-- ORGANIZAÇÃO -->
-<div class="row mb-3">
-    <div class="col-md-6">
-        <label class="fw-bold">Organização</label>
-        <select class="form-select" value="@selectedOrgId" @onchange="OnOrgChanged">
-            <option value="">— Nenhuma (tarefa pessoal) —</option>
-            @foreach (var org in allowedOrgs)
-            {
-                <option value="@org.Id">@org.Name</option>
-            }
-        </select>
-    </div>
-</div>
-
-<!-- ASSIGNEES (só aparece se org selecionada) -->
-@if (selectedOrgId != null && orgMembers.Any())
-{
-    <div class="mb-3">
-        <label class="fw-bold">Atribuir a</label>
-        <div class="border rounded p-2" style="max-height: 180px; overflow-y: auto;">
-            @foreach (var member in orgMembers)
-            {
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="assignee_@member.UserId"
-                           checked="@(taskModel.AssignedToUserIds != null && taskModel.AssignedToUserIds.Contains(member.UserId))"
-                           @onchange="() => ToggleAssignee(member.UserId)" />
-                    <label class="form-check-label" for="assignee_@member.UserId">
-                        @member.UserName
-                        <span class="badge @RoleBadge(member.Role) ms-1 small">@member.Role</span>
-                    </label>
+            <!-- Título + Prioridade -->
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label fw-semibold">Título <span class="text-danger">*</span></label>
+                    <InputText @bind-Value="taskModel.Title" class="form-control" placeholder="Nome da tarefa..." />
+                    <ValidationMessage For="@(() => taskModel.Title)" class="text-danger small" />
                 </div>
-            }
-        </div>
-    </div>
-
-    <!-- REVISORES -->
-    <div class="mb-3">
-        <label class="fw-bold">Revisores</label>
-        <div class="border rounded p-2" style="max-height: 180px; overflow-y: auto;">
-            @foreach (var member in orgMembers)
-            {
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="reviewer_@member.UserId"
-                           checked="@(taskModel.ReviewByUserId != null && taskModel.ReviewByUserId.Contains(member.UserId))"
-                           @onchange="() => ToggleReviewer(member.UserId)" />
-                    <label class="form-check-label" for="reviewer_@member.UserId">
-                        @member.UserName
-                    </label>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Prioridade</label>
+                    <div class="input-group">
+                        <InputNumber @bind-Value="taskModel.Priority" class="form-control" min="1" max="100" />
+                        <span class="input-group-text">@GetPriorityEmoji(taskModel.Priority)</span>
+                    </div>
+                    <div class="form-text">
+                        Ex: 1=🔴 Crítica, 5=🟡 Normal, 20=🟢 Baixa
+                    </div>
                 </div>
-            }
-        </div>
-        @if (taskModel.ReviewByUserId?.Any() == true)
-        {
-            <div class="mt-2">
-                <label class="fw-bold">Revisões necessárias</label>
-                <InputNumber @bind-Value="taskModel.NeedsReview" class="form-control" style="max-width:100px;" min="0" max="20" />
             </div>
-        }
-    </div>
-}
 
-    <div class="mb-3">
-        <label class="fw-bold">Dependências
-            @if (taskModel.DependencyOnTaskIds?.Any() == true)
-            {
-                <span class="badge bg-primary ms-2">@taskModel.DependencyOnTaskIds.Count selecionada(s)</span>
-            }
-        </label>
-        @if (priorityAdjustedMsg != null)
-        {
-            <div class="alert alert-info py-1 px-2 mb-2 small">@priorityAdjustedMsg</div>
-        }
+            <!-- Descrição -->
+            <div>
+                <label class="form-label fw-semibold">Descrição</label>
+                <InputTextArea @bind-Value="taskModel.Description" class="form-control" rows="3"
+                               placeholder="Detalhes opcionais..." />
+            </div>
 
-        @if (availableTasks.Any())
-        {
-            <input type="text" class="form-control form-control-sm mb-2" placeholder="🔍 Filtrar por nome ou #número..."
-                   @bind="depFilter" @bind:event="oninput" />
+            <!-- Prazo + Alarme + Recorrência -->
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Prazo</label>
+                    <InputDate @bind-Value="taskModel.DueDate" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Alarme</label>
+                    <div class="form-check mt-2">
+                        <InputCheckbox @bind-Value="taskModel.HasAlarm" class="form-check-input" id="chkAlarm" />
+                        <label class="form-check-label" for="chkAlarm">Ativar alarme</label>
+                    </div>
+                    @if (taskModel.HasAlarm)
+                    {
+                        <InputDate @bind-Value="taskModel.AlarmTime" class="form-control mt-2" />
+                    }
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Recorrência</label>
+                    <div class="form-check mt-2">
+                        <InputCheckbox @bind-Value="taskModel.IsRecurrent" class="form-check-input" id="chkRecurrent" />
+                        <label class="form-check-label" for="chkRecurrent">Recorrente</label>
+                    </div>
+                    @if (taskModel.IsRecurrent)
+                    {
+                        <InputSelect @bind-Value="taskModel.RecurrencePattern" class="form-select mt-2">
+                            <option value="Daily">Diária</option>
+                            <option value="Weekly">Semanal</option>
+                            <option value="Monthly">Mensal</option>
+                        </InputSelect>
+                    }
+                </div>
+            </div>
 
-            <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
-                @{
-                    var filtered = string.IsNullOrWhiteSpace(depFilter)
-                        ? availableTasks
-                        : availableTasks.Where(t =>
-                            t.Title.Contains(depFilter, StringComparison.OrdinalIgnoreCase) ||
-                            t.Id.ToString().Contains(depFilter)).ToList();
-                }
-                @if (!filtered.Any())
-                {
-                    <p class="text-muted small mb-0">Nenhuma tarefa encontrada.</p>
-                }
+            <!-- Dependências -->
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <label class="form-label fw-semibold mb-0">Dependências</label>
+                    @if (taskModel.DependencyOnTaskIds?.Any() == true)
+                    {
+                        <span class="badge bg-primary rounded-pill">@taskModel.DependencyOnTaskIds.Count
+                            selecionada(s)</span>
+                        }
+                    </div>
+                    @if (priorityAdjustedMsg != null)
+                    {
+                        <div class="alert alert-info py-2 px-3 mb-2 small">
+                            <i class="bi bi-info-circle me-1"></i>@priorityAdjustedMsg
+                        </div>
+                    }
+                    @if (availableTasks.Any())
+                    {
+                        <input type="text" class="form-control form-control-sm mb-2"
+                               placeholder="🔍 Filtrar por nome ou #número..."                           @bind="depFilter" @bind:event="oninput" />
+                        <div class="border rounded" style="max-height: 200px; overflow-y: auto;">
+                            @{
+                                var filtered = string.IsNullOrWhiteSpace(depFilter)
+                                    ? availableTasks
+                                    : availableTasks.Where(t =>
+                                        t.Title.Contains(depFilter, StringComparison.OrdinalIgnoreCase) ||
+                                        t.Id.ToString().Contains(depFilter)).ToList();
+                            }
+                            @if (!filtered.Any())
+                            {
+                                <p class="text-muted small mb-0 p-3">Nenhuma tarefa encontrada.</p>
+                            }
+                            else
+                            {
+                                @foreach (var t in filtered)
+                                {
+                                    @if (!forbiddenIds.Contains(t.Id))
+                                    {
+                                        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                                            <input class="form-check-input flex-shrink-0" type="checkbox" id="dep_@t.Id"
+                                                   checked="@(taskModel.DependencyOnTaskIds != null && taskModel.DependencyOnTaskIds.Contains(t.Id))"
+                                                   @onchange="() => ToggleDependency(t.Id)" />
+                                            <label class="form-check-label flex-grow-1 mb-0 small" for="dep_@t.Id" title="@t.Description">
+                                                <span class="text-muted me-1">#@t.Id</span>@t.Title
+                                                @if (t.IsCompleted)
+                                                {
+                                                    <span class="badge bg-success ms-1 small">✅</span>
+                                                }
+                                            </label>
+                                            <span class="badge @GetPriorityBadgeClass(t.Priority)">@GetPriorityEmoji(t.Priority)
+                                                @t.Priority</span>
+                                                <span class="badge bg-light text-dark border small">@t.Category</span>
+                                            </div>
+                                        }
+                                    }
+                                }
+                            </div>
+                        }
                 else
-                {
+                        {
+                            <p class="text-muted small">Nenhuma tarefa pendente disponível para dependência.</p>
+                        }
+                    </div>
 
-@foreach (var t in filtered)
-{
-    @if (!forbiddenIds.Contains(t.Id))
-    {
-        <div class="form-check d-flex align-items-center gap-2">
-            <input class="form-check-input" type="checkbox" id="dep_@t.Id"
-       checked="@(taskModel.DependencyOnTaskIds != null && taskModel.DependencyOnTaskIds.Contains(t.Id))"
-       @onchange="() => ToggleDependency(t.Id)" />
+                </div>
 
-            <label class="form-check-label flex-grow-1" for="dep_@t.Id"
-                   title="@t.Description">
-                <span class="text-muted me-1">#@t.Id</span>@t.Title
-                @if (t.IsCompleted)
-                {
-                    <span class="badge bg-success ms-1 small">✅</span>
-                }
-            </label>
-            <span class="badge @GetPriorityBadgeClass(t.Priority) ms-auto"
-                  title="@t.Title — @t.Description">
-                @GetPriorityEmoji(t.Priority) @t.Priority
-            </span>
-            <span class="badge bg-secondary" title="@t.Category">@t.Category</span>
-        </div>
-    }
-}
+                <!-- COLUNA DIREITA: categoria, tags, org, pessoas, botões -->
+                <div class="col-lg-4 d-flex flex-column gap-4">
 
-                }
+                    <!-- Categoria -->
+                    <div>
+                        <label class="form-label fw-semibold">Categoria</label>
+                        <InputSelect @bind-Value="taskModel.Category" class="form-select">
+                            <option>Geral</option>
+                            <option>Trabalho</option>
+                            <option>Pessoal</option>
+                            <option>Estudos</option>
+                            <option>Saúde</option>
+                        </InputSelect>
+                    </div>
+
+                    <!-- Tags -->
+                    <div>
+                        <label class="form-label fw-semibold">Tags</label>
+                        <InputText @bind-Value="@tagsInput" class="form-control" placeholder="ex: urgente, reunião" />
+                        <div class="form-text">Separadas por vírgula</div>
+                    </div>
+
+                    <!-- Organização -->
+                    <div>
+                        <label class="form-label fw-semibold">Organização</label>
+                        <select class="form-select" value="@selectedOrgId" @onchange="OnOrgChanged">
+                            <option value="">— Nenhuma (pessoal) —</option>
+                            @foreach (var org in allowedOrgs)
+                            {
+                                <option value="@org.Id">@org.Name</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Assignees + Revisores (aparecem após selecionar org) -->
+                    @if (selectedOrgId != null && orgMembers.Any())
+                    {
+                        <div>
+                            <label class="form-label fw-semibold">Atribuir a</label>
+                            <div class="border rounded" style="max-height: 150px; overflow-y: auto;">
+                                @foreach (var member in orgMembers)
+                                {
+                                    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                                        <input class="form-check-input flex-shrink-0" type="checkbox"                                       id="assignee_@member.UserId"
+                                               checked="@(taskModel.AssignedToUserIds != null && taskModel.AssignedToUserIds.Contains(member.UserId))"
+                                               @onchange="() => ToggleAssignee(member.UserId)" />
+                                        <label class="form-check-label flex-grow-1 mb-0 small" for="assignee_@member.UserId">
+                                            @member.UserName
+                                        </label>
+                                        <span class="badge @RoleBadge(member.Role) small">@member.Role</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label fw-semibold">Revisores</label>
+                            <div class="border rounded" style="max-height: 150px; overflow-y: auto;">
+                                @foreach (var member in orgMembers)
+                                {
+                                    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                                        <input class="form-check-input flex-shrink-0" type="checkbox"                                       id="reviewer_@member.UserId"
+                                               checked="@(taskModel.ReviewByUserId != null && taskModel.ReviewByUserId.Contains(member.UserId))"
+                                               @onchange="() => ToggleReviewer(member.UserId)" />
+                                        <label class="form-check-label flex-grow-1 mb-0 small" for="reviewer_@member.UserId">
+                                            @member.UserName
+                                        </label>
+                                    </div>
+                                }
+                            </div>
+                            @if (taskModel.ReviewByUserId?.Any() == true)
+                            {
+                                <div class="mt-2 d-flex align-items-center gap-2">
+                                    <label class="form-label mb-0 small fw-semibold">Revisões necessárias:</label>
+                                    <InputNumber @bind-Value="taskModel.NeedsReview" class="form-control form-control-sm"
+                                                 style="max-width: 70px;" min="0" max="20" />
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- Botões -->
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi @(editingTask != null ? "bi-check-lg" : "bi-plus-lg") me-1"></i>
+                            @(editingTask != null ? "Salvar Alterações" : "Criar Tarefa")
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="Cancel">
+                            Cancelar
+                        </button>
+                    </div>
+
+                </div>
             </div>
-        }
-        else
-        {
-            <p class="text-muted small">Nenhuma tarefa pendente disponível.</p>
-        }
-    </div>
 
-    <TaskComments TaskId="@(TaskId ?? 0)" />
+            <!-- COMENTÁRIOS: abaixo de tudo, só em edição -->
+            @if (TaskId.HasValue)
+            {
+                <hr class="mt-4" />
+                <div class="mt-3">
+                    <label class="form-label fw-semibold">
+                        <i class="bi bi-chat-left-text me-2 text-primary"></i>Comentários
+                    </label>
+                    <TaskComments TaskId="@(TaskId ?? 0)" />
+                </div>
+            }
 
-    <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">@((editingTask != null) ? "Salvar Alterações" : "Adicionar            Tarefa")</button>
-        <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancelar</button>
-    </div>
-</EditForm>
-
+        </EditForm>
 @code {
     [Parameter] public int? TaskId { get; set; }
     private TaskItem? editingTask;
@@ -258,136 +294,136 @@
     private int? selectedOrgId;
     private string? permissionError;
 
-protected override async Task OnInitializedAsync()
-{
-    var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-    currentUserId = authState.User.FindFirst(
-        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-    var allOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId!);
-    foreach (var org in allOrgs)
+    protected override async Task OnInitializedAsync()
     {
-        var role = await OrgService.GetUserRoleAsync(org.Id, currentUserId!);
-        if (role.HasValue && OrgService.CanCreateTask(org, role.Value))
-            allowedOrgs.Add(org);
-    }
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-    // Ler ?orgId= da URL ANTES de buscar tasks
-    var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
-    var qs = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-    if (qs.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
-    {
-        if (allowedOrgs.Any(o => o.Id == parsedOrgId))
+        var allOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId!);
+        foreach (var org in allOrgs)
         {
-            selectedOrgId = parsedOrgId;
-            taskModel.OrganizationId = parsedOrgId;
-            await LoadOrgMembers(parsedOrgId);
+            var role = await OrgService.GetUserRoleAsync(org.Id, currentUserId!);
+            if (role.HasValue && OrgService.CanCreateTask(org, role.Value))
+                allowedOrgs.Add(org);
         }
-    }
 
-    if (TaskId.HasValue)
-    {
-        editingTask = await TaskService.GetTaskByIdAsync(TaskId.Value);
-
-        if (editingTask != null)
+        // Ler ?orgId= da URL ANTES de buscar tasks
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var qs = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        if (qs.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
         {
-            if (editingTask.OrganizationId.HasValue)
+            if (allowedOrgs.Any(o => o.Id == parsedOrgId))
             {
-                var orgForEdit = allOrgs.FirstOrDefault(o => o.Id == editingTask.OrganizationId);
-                var roleForEdit = await OrgService.GetUserRoleAsync(editingTask.OrganizationId.Value, currentUserId!);
-                if (orgForEdit == null || !roleForEdit.HasValue || !OrgService.CanCreateTask(orgForEdit, roleForEdit.Value))
-                {
-                    permissionError = "Você não tem permissão para editar tasks desta organização.";
-                    return;
-                }
-                selectedOrgId = editingTask.OrganizationId;
-                taskModel.OrganizationId = editingTask.OrganizationId;
-                await LoadOrgMembers(editingTask.OrganizationId.Value);
+                selectedOrgId = parsedOrgId;
+                taskModel.OrganizationId = parsedOrgId;
+                await LoadOrgMembers(parsedOrgId);
             }
+        }
 
-            // Busca tasks já com orgId correto
-            var allMine = await TaskService.GetAllTasksAsync(currentUserId, taskModel.OrganizationId);
+        if (TaskId.HasValue)
+        {
+            editingTask = await TaskService.GetTaskByIdAsync(TaskId.Value);
 
-            taskModel = new TaskItem
+            if (editingTask != null)
             {
-                Id = editingTask.Id,
-                Title = editingTask.Title,
-                Description = editingTask.Description,
-                Priority = editingTask.Priority,
-                Category = editingTask.Category,
-                DueDate = editingTask.DueDate,
-                HasAlarm = editingTask.HasAlarm,
-                AlarmTime = editingTask.AlarmTime,
-                IsRecurrent = editingTask.IsRecurrent,
-                RecurrencePattern = editingTask.RecurrencePattern,
-                IsCompleted = editingTask.IsCompleted,
-                Tags = new List<string>(editingTask.Tags ?? new()),
-                DependencyOnTaskIds = new List<int>(editingTask.DependencyOnTaskIds ?? new()),
-                AssignedToUserIds = new List<string>(editingTask.AssignedToUserIds ?? new()),
-                ReviewByUserId = new List<string>(editingTask.ReviewByUserId ?? new()),
-                NeedsReview = editingTask.NeedsReview,
-                AuthorUserId = editingTask.AuthorUserId,
-                OrganizationId = editingTask.OrganizationId,
-                CreatedAt = editingTask.CreatedAt
-            };
-            tagsInput = string.Join(",", taskModel.Tags);
+                if (editingTask.OrganizationId.HasValue)
+                {
+                    var orgForEdit = allOrgs.FirstOrDefault(o => o.Id == editingTask.OrganizationId);
+                    var roleForEdit = await OrgService.GetUserRoleAsync(editingTask.OrganizationId.Value, currentUserId!);
+                    if (orgForEdit == null || !roleForEdit.HasValue || !OrgService.CanCreateTask(orgForEdit, roleForEdit.Value))
+                    {
+                        permissionError = "Você não tem permissão para editar tasks desta organização.";
+                        return;
+                    }
+                    selectedOrgId = editingTask.OrganizationId;
+                    taskModel.OrganizationId = editingTask.OrganizationId;
+                    await LoadOrgMembers(editingTask.OrganizationId.Value);
+                }
 
-            var selectedIds = taskModel.DependencyOnTaskIds;
-            availableTasks = allMine
-                .Where(t => t.Id != TaskId.Value && (!t.IsCompleted || selectedIds.Contains(t.Id)))
-                .ToList();
+                // Busca tasks já com orgId correto
+                var allMine = await TaskService.GetAllTasksAsync(currentUserId, taskModel.OrganizationId);
+
+                taskModel = new TaskItem
+                {
+                    Id = editingTask.Id,
+                    Title = editingTask.Title,
+                    Description = editingTask.Description,
+                    Priority = editingTask.Priority,
+                    Category = editingTask.Category,
+                    DueDate = editingTask.DueDate,
+                    HasAlarm = editingTask.HasAlarm,
+                    AlarmTime = editingTask.AlarmTime,
+                    IsRecurrent = editingTask.IsRecurrent,
+                    RecurrencePattern = editingTask.RecurrencePattern,
+                    IsCompleted = editingTask.IsCompleted,
+                    Tags = new List<string>(editingTask.Tags ?? new()),
+                    DependencyOnTaskIds = new List<int>(editingTask.DependencyOnTaskIds ?? new()),
+                    AssignedToUserIds = new List<string>(editingTask.AssignedToUserIds ?? new()),
+                    ReviewByUserId = new List<string>(editingTask.ReviewByUserId ?? new()),
+                    NeedsReview = editingTask.NeedsReview,
+                    AuthorUserId = editingTask.AuthorUserId,
+                    OrganizationId = editingTask.OrganizationId,
+                    CreatedAt = editingTask.CreatedAt
+                };
+                tagsInput = string.Join(",", taskModel.Tags);
+
+                var selectedIds = taskModel.DependencyOnTaskIds;
+                availableTasks = allMine
+                    .Where(t => t.Id != TaskId.Value && (!t.IsCompleted || selectedIds.Contains(t.Id)))
+                    .ToList();
+            }
+            else
+            {
+                Navigation.NavigateTo("/tasks");
+            }
         }
         else
         {
-            Navigation.NavigateTo("/tasks");
+            // Nova task — busca com orgId já definido
+            var allMine = await TaskService.GetAllTasksAsync(currentUserId, taskModel.OrganizationId);
+            availableTasks = allMine.Where(t => !t.IsCompleted).ToList();
+            taskModel.CreatedAt = DateTime.UtcNow;
+            taskModel.AuthorUserId = currentUserId!;
+            taskModel.AssignedToUserIds = new List<string>();
+            taskModel.ReviewByUserId = new List<string>();
+        }
+
+        if (taskModel.Id > 0)
+        {
+            forbiddenIds = await TaskService.GetDependencyChainAsync(taskModel.Id);
+            forbiddenIds.Add(taskModel.Id);
+        }
+        else
+        {
+            forbiddenIds = new HashSet<int>();
         }
     }
-    else
-    {
-        // Nova task — busca com orgId já definido
-        var allMine = await TaskService.GetAllTasksAsync(currentUserId, taskModel.OrganizationId);
-        availableTasks = allMine.Where(t => !t.IsCompleted).ToList();
-        taskModel.CreatedAt = DateTime.UtcNow;
-        taskModel.AuthorUserId = currentUserId!;
-        taskModel.AssignedToUserIds = new List<string>();
-        taskModel.ReviewByUserId = new List<string>();
-    }
-
-    if (taskModel.Id > 0)
-    {
-        forbiddenIds = await TaskService.GetDependencyChainAsync(taskModel.Id);
-        forbiddenIds.Add(taskModel.Id);
-    }
-    else
-    {
-        forbiddenIds = new HashSet<int>();
-    }
-}
 
 
-private async Task OnOrgChanged(ChangeEventArgs e)
-{
-    if (int.TryParse(e.Value?.ToString(), out var orgId))
+    private async Task OnOrgChanged(ChangeEventArgs e)
     {
-        selectedOrgId = orgId;
-        taskModel.OrganizationId = orgId;
-        await LoadOrgMembers(orgId);
-        // Busca tasks APENAS da org selecionada
-        var tasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
-        availableTasks = tasks.Where(t => !t.IsCompleted && t.Id != (TaskId ?? 0)).ToList();
+        if (int.TryParse(e.Value?.ToString(), out var orgId))
+        {
+            selectedOrgId = orgId;
+            taskModel.OrganizationId = orgId;
+            await LoadOrgMembers(orgId);
+            // Busca tasks APENAS da org selecionada
+            var tasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
+            availableTasks = tasks.Where(t => !t.IsCompleted && t.Id != (TaskId ?? 0)).ToList();
+        }
+        else
+        {
+            selectedOrgId = null;
+            taskModel.OrganizationId = null;
+            taskModel.AssignedToUserIds = new List<string>();
+            taskModel.ReviewByUserId = new List<string>();
+            orgMembers = new();
+            // Busca tasks pessoais (sem org)
+            var tasks = await TaskService.GetAllTasksAsync(currentUserId, null);
+            availableTasks = tasks.Where(t => !t.IsCompleted && t.Id != (TaskId ?? 0)).ToList();
+        }
     }
-    else
-    {
-        selectedOrgId = null;
-        taskModel.OrganizationId = null;
-        taskModel.AssignedToUserIds = new List<string>();
-        taskModel.ReviewByUserId = new List<string>();
-        orgMembers = new();
-        // Busca tasks pessoais (sem org)
-        var tasks = await TaskService.GetAllTasksAsync(currentUserId, null);
-        availableTasks = tasks.Where(t => !t.IsCompleted && t.Id != (TaskId ?? 0)).ToList();
-    }
-}
 
 
     private async Task LoadOrgMembers(int orgId)
