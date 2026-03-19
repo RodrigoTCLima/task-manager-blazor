@@ -23,313 +23,389 @@ else
     <!-- Saudação -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="mb-0">👋 Olá, @userName!</h3>
-            <small class="text-muted">@DateTime.Now.ToString("dddd, dd 'de' MMMM 'de' yyyy", new
-                                                                            System.Globalization.CultureInfo("pt-BR"))</small>
-            </div>
-            <a href="/add-task" class="btn btn-primary">+ Nova Tarefa</a>
+            <h4 class="mb-0 fw-bold">👋 Olá, @userName!</h4>
+            <small class="text-muted">@DateTime.Now.ToString("dddd, dd 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("pt-BR"))</small>
         </div>
+        <a href="/add-task" class="btn btn-primary btn-sm">+ Nova Tarefa</a>
+    </div>
 
-        <!-- Cards de resumo -->
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="card text-center border-0 shadow h-100">
-                    <div class="card-body py-4">
-                        <div class="fs-1 fw-bold text-primary">@totalTasks</div>
-                        <div class="text-muted mt-1">Total</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card text-center border-0 shadow h-100">
-                    <div class="card-body py-4">
-                        <div class="fs-1 fw-bold text-success">@completedTasks</div>
-                        <div class="text-muted mt-1">Concluídas</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card text-center border-0 shadow h-100">
-                    <div class="card-body py-4">
-                        <div class="fs-1 fw-bold text-warning">@pendingTasks</div>
-                        <div class="text-muted mt-1">Pendentes</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card text-center border-0 shadow h-100">
-                    <div class="card-body py-4">
-                        <div class="fs-1 fw-bold text-danger">@overdueTasks</div>
-                        <div class="text-muted mt-1">Atrasadas</div>
-                    </div>
+    <!-- Cards de resumo -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card text-center border-0 shadow h-100">
+                <div class="card-body py-4">
+                    <div class="fs-1 fw-bold text-primary">@totalTasks</div>
+                    <div class="text-muted mt-1">Total</div>
                 </div>
             </div>
         </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center border-0 shadow h-100">
+                <div class="card-body py-4">
+                    <div class="fs-1 fw-bold text-success">@completedTasks</div>
+                    <div class="text-muted mt-1">Concluídas</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center border-0 shadow h-100">
+                <div class="card-body py-4">
+                    <div class="fs-1 fw-bold text-warning">@pendingTasks</div>
+                    <div class="text-muted mt-1">Pendentes</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center border-0 shadow h-100">
+                <div class="card-body py-4">
+                    <div class="fs-1 fw-bold text-danger">@overdueTasks</div>
+                    <div class="text-muted mt-1">Atrasadas</div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        <!-- Barra de progresso geral -->
-        @if (totalTasks > 0)
+    <!-- Barra de progresso -->
+    @if (totalTasks > 0)
+    {
+        <div class="mb-5">
+            <div class="d-flex justify-content-between small text-muted mb-1">
+                <span>Progresso geral</span>
+                <span>@completionPct%</span>
+            </div>
+            <div class="progress" style="height: 10px;">
+                <div class="progress-bar bg-success" style="width:@completionPct%"></div>
+            </div>
+        </div>
+    }
+
+    <!-- Banner de bloqueadas (logo após progresso) -->
+    @if (blockedTasks.Any())
+    {
+        <div class="alert alert-secondary d-flex align-items-center justify-content-between py-2 px-3 mb-4" style="border-left: 4px solid #495057;">
+            <span class="small">🔒 <strong>@blockedTasks.Count</strong> tarefa(s) bloqueada(s) aguardando dependências</span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick='() => sectionOpen["blocked"] = !sectionOpen["blocked"]'>
+                @(sectionOpen["blocked"] ? "Ocultar ▲" : "Ver ▼")
+            </button>
+        </div>
+        @if (sectionOpen["blocked"])
         {
-            <div class="mb-4">
-                <div class="d-flex justify-content-between small text-muted mb-1">
-                    <span>Progresso geral</span>
-                    <span>@completionPct%</span>
-                </div>
-                <div class="progress" style="height: 10px;">
-                    <div class="progress-bar bg-success" style="width:@completionPct%"></div>
-                </div>
-            </div>
-        }
-
-        <div class="row g-4">
-
-            <!-- Coluna esquerda -->
-            <div class="col-md-6">
-
-                <!-- Tasks urgentes -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header fw-bold bg-danger text-white">
-                        🔴 Urgentes (prioridade ≤ 5)
-                    </div>
-                    @if (!urgentTasks.Any())
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-0">
+                    @foreach (var t in blockedTasks.Take(5))
                     {
-                        <div class="card-body text-muted small">Nenhuma task urgente. 🎉</div>
-                    }
-                    else
-                    {
-                        <ul class="list-group list-group-flush">
-                            @foreach (var t in urgentTasks.Take(5))
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <a href="/task/@t.Id" class="text-decoration-none text-dark">
-                                        <span class="text-muted me-1 small">#@t.Id</span>@t.Title
-                                    </a>
-                                    <span class="badge @GetPriorityClass(t.Priority)">@GetPriorityEmoji(t.Priority) @t.Priority</span>
-                                </li>
-                            }
-                        </ul>
-                        @if (urgentTasks.Count > 5)
-                        {
-                            <div class="card-footer text-muted small text-center">
-                                + @(urgentTasks.Count - 5) outras urgentes
+                        var orgName = t.OrganizationId.HasValue
+                            ? userOrgs.FirstOrDefault(o => o.Id == t.OrganizationId)?.Name
+                            : null;
+                        <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom">
+                            <span class="badge bg-secondary">🔒</span>
+                            <div class="flex-grow-1">
+                                <a href="/task/@t.Id" class="text-decoration-none text-dark small fw-semibold">
+                                    <span class="text-muted me-1">#@t.Id</span>@t.Title
+                                </a>
+                                @if (orgName != null)
+                                {
+                                    <span class="badge bg-light text-dark border ms-2" style="font-size:.65rem;">🏢 @orgName</span>
+                                }
                             </div>
-                        }
-                    }
-                </div>
-
-                <!-- Vencem hoje -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header fw-bold bg-warning text-dark">
-                        ⏰ Vencem hoje
-                    </div>
-                    @if (!dueTodayTasks.Any())
-                    {
-                        <div class="card-body text-muted small">Nada vence hoje. 🎉</div>
-                    }
-                    else
-                    {
-                        <ul class="list-group list-group-flush">
-                            @foreach (var t in dueTodayTasks)
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <a href="/task/@t.Id" class="text-decoration-none text-dark">
-                                        <span class="text-muted me-1 small">#@t.Id</span>@t.Title
-                                    </a>
-                                    <span class="badge bg-warning text-dark">Hoje</span>
-                                </li>
-                            }
-                        </ul>
-                    }
-                </div>
-
-                <!-- Próximas a vencer (7 dias) -->
-<div class="card border-0 shadow mb-4">
-    <div class="card-header fw-bold bg-secondary text-white">
-        📅 Próximos 7 dias (@dueSoonTasks.Count)
-    </div>
-    @if (!dueSoonTasks.Any())
-    {
-        <div class="card-body text-muted small">Nada vence nos próximos 7 dias. 🎉</div>
-    }
-    else
-    {
-        <ul class="list-group list-group-flush">
-            @foreach (var t in dueSoonTasks.Take(5))
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <a href="/task/@t.Id" class="text-decoration-none text-dark">
-                        <span class="text-muted me-1 small">#@t.Id</span>@t.Title
-                    </a>
-                    <span class="badge bg-secondary">
-                        @t.DueDate!.Value.ToLocalTime().ToString("dd/MM")
-                    </span>
-                </li>
-            }
-        </ul>
-        @if (dueSoonTasks.Count > 5)
-        {
-            <div class="card-footer text-muted small text-center">
-                + @(dueSoonTasks.Count - 5) outras
-            </div>
-        }
-    }
-</div>
-
-<!-- Bloqueadas por dependência -->
-@if (blockedTasks.Any())
-{
-    <div class="card border-0 shadow mb-4">
-        <div class="card-header fw-bold bg-dark text-white">
-            🔒 Bloqueadas (@blockedTasks.Count)
-        </div>
-        <ul class="list-group list-group-flush">
-            @foreach (var t in blockedTasks.Take(5))
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <a href="/task/@t.Id" class="text-decoration-none text-dark">
-                        <span class="text-muted me-1 small">#@t.Id</span>@t.Title
-                    </a>
-                    <span class="badge bg-dark">
-                        @t.DependencyOnTaskIds!.Count dep(s)
-                    </span>
-                </li>
-            }
-        </ul>
-        @if (blockedTasks.Count > 5)
-        {
-            <div class="card-footer text-muted small text-center">
-                + @(blockedTasks.Count - 5) outras bloqueadas
-            </div>
-        }
-    </div>
-}
-
-
-                <!-- Revisões pendentes -->
-                @if (pendingReviews.Any())
-                {
-                    <div class="card border-0 shadow-sm mb-4">
-                        <div class="card-header fw-bold bg-info text-dark">
-                            🔍 Aguardando minha revisão
+                            <span class="badge @GetPriorityClass(t.Priority)">@GetPriorityEmoji(t.Priority) @t.Priority</span>
                         </div>
-                        <ul class="list-group list-group-flush">
-                            @foreach (var t in pendingReviews)
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <a href="/task/@t.Id" class="text-decoration-none text-dark">
-                                        <span class="text-muted me-1 small">#@t.Id</span>@t.Title
-                                    </a>
-                                    <span class="badge bg-info text-dark">Revisar</span>
-                                </li>
-                            }
-                        </ul>
-                    </div>
-                }
+                    }
+                    @if (blockedTasks.Count > 5)
+                    {
+                        <div class="px-3 py-2 text-muted small">+ @(blockedTasks.Count - 5) outras bloqueadas</div>
+                    }
+                </div>
+            </div>
+        }
+    }
 
+    <!-- ══ SEÇÃO: PARA FAZER AGORA ══ -->
+    <div class="mb-2">
+        <button class="btn btn-link text-decoration-none text-dark p-0 d-flex align-items-center gap-2 w-100"
+                @onclick='() => sectionOpen["todo"] = !sectionOpen["todo"]'>
+            <span class="fw-bold fs-6">
+                Para fazer agora
+                @if (todoList.Any())
+                {
+                    <span class="badge bg-primary rounded-pill ms-1" style="font-size:.7rem;">@todoList.Count</span>
+                }
+            </span>
+            <hr class="flex-grow-1 my-0 ms-2" />
+            <span class="text-muted small ms-2">@(sectionOpen["todo"] ? "▲" : "▼")</span>
+        </button>
+    </div>
+
+    @if (sectionOpen["todo"])
+    {
+        @* Lembrete de próximos 7 dias *@
+        @if (dueSoonTasks.Any())
+        {
+            <div class="d-flex align-items-center gap-2 mb-3 px-1">
+                <i class="bi bi-calendar-week text-secondary small"></i>
+                <span class="text-muted small">
+                    📅 <strong>@dueSoonTasks.Count</strong> tarefa(s) vencem nos próximos 7 dias
+                </span>
+                <a href="/tasks" class="ms-auto text-decoration-none small text-primary">ver todas →</a>
+            </div>
+        }
+
+        @if (!todoList.Any())
+        {
+            @* 4. Estado "tudo em dia" — só aparece se realmente não há nada pendente *@
+            @if (overdueTasks == 0 && !blockedTasks.Any())
+            {
+                <div class="card border-0 shadow-sm mb-5" style="border-left: 4px solid #198754 !important;">
+                    <div class="card-body py-4 text-center">
+                        <div class="fs-1 mb-2">🎉</div>
+                        <h6 class="fw-bold text-success mb-1">Tudo em dia!</h6>
+                        <p class="text-muted small mb-0">Nenhuma tarefa urgente, revisão pendente ou prazo hoje. Bom trabalho!</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted small mb-5">Nada urgente no momento.</p>
+            }
+        }
+        else
+        {
+            <div class="card border-0 shadow-sm mb-5">
+                <div class="card-body p-0">
+                    @foreach (var item in todoList)
+                    {
+                        var orgName = item.Task.OrganizationId.HasValue
+                            ? userOrgs.FirstOrDefault(o => o.Id == item.Task.OrganizationId)?.Name
+                            : null;
+                        <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom">
+                            <span class="badge @item.BadgeClass" style="min-width: 82px; text-align:center;">@item.TypeLabel</span>
+                            <div class="flex-grow-1">
+                                <a href="/task/@item.Task.Id" class="text-decoration-none text-dark small fw-semibold">
+                                    <span class="text-muted me-1">#@item.Task.Id</span>@item.Task.Title
+                                </a>
+                                @if (orgName != null)
+                                {
+                                    <span class="badge bg-light text-dark border ms-2" style="font-size:.65rem;">🏢 @orgName</span>
+                                }
+                            </div>
+                            @if (item.Task.DueDate.HasValue)
+                            {
+                                <span class="text-muted small">@item.Task.DueDate.Value.ToLocalTime().ToString("dd/MM")</span>
+                            }
+                            <span class="badge @GetPriorityClass(item.Task.Priority)">@GetPriorityEmoji(item.Task.Priority) @item.Task.Priority</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    <!-- ══ SEÇÃO: CONTEXTO ══ -->
+    <div class="mb-2">
+        <button class="btn btn-link text-decoration-none text-dark p-0 d-flex align-items-center gap-2 w-100"
+                @onclick='() => sectionOpen["context"] = !sectionOpen["context"]'>
+            <span class="fw-bold fs-6">Contexto</span>
+            <hr class="flex-grow-1 my-0 ms-2" />
+            <span class="text-muted small ms-2">@(sectionOpen["context"] ? "▲" : "▼")</span>
+        </button>
+    </div>
+
+    @if (sectionOpen["context"])
+    {
+        <div class="row g-4 mb-5">
+
+            <!-- Orgs -->
+            @if (userOrgs.Any())
+            {
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-transparent border-bottom py-2">
+                            <span class="text-muted small fw-semibold text-uppercase" style="font-size:0.7rem;letter-spacing:.06em;">🏢 Organizações</span>
+                        </div>
+                        <div class="card-body p-0">
+                            @foreach (var org in userOrgs)
+                            {
+                                var orgPending = allTasks.Count(t => !t.IsCompleted && t.OrganizationId == org.Id);
+                                var orgOverdue = allTasks.Count(t => !t.IsCompleted && t.OrganizationId == org.Id && t.DueDate.HasValue && t.DueDate.Value < DateTime.UtcNow);
+                                <div class="d-flex align-items-start justify-content-between px-3 py-2 border-bottom">
+                                    <div>
+                                        <a href="/tasks?orgId=@org.Id" class="text-decoration-none text-dark fw-semibold small">@org.Name</a>
+                                        <div class="d-flex gap-1 mt-1">
+                                            <span class="badge bg-warning text-dark" style="font-size:.65rem;">@orgPending pendente(s)</span>
+                                            @if (orgOverdue > 0)
+                                            {
+                                                <span class="badge bg-danger" style="font-size:.65rem;">@orgOverdue atrasada(s)</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <a href="/org/@org.Id" class="badge bg-light text-dark border text-decoration-none small">Ver</a>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Atribuídas a mim -->
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-transparent border-bottom py-2">
+                        <span class="text-muted small fw-semibold text-uppercase" style="font-size:0.7rem;letter-spacing:.06em;">👤 Atribuídas a mim</span>
+                    </div>
+                    <div class="card-body p-0">
+                @if (!assignedToMe.Any())
+                {
+                    <p class="text-muted small p-3 mb-0">Nenhuma tarefa atribuída a você.</p>
+                }
+                else
+                {
+                    @foreach (var t in assignedToMe.Take(6))
+                    {
+                        var orgNameA = t.OrganizationId.HasValue
+                            ? userOrgs.FirstOrDefault(o => o.Id == t.OrganizationId)?.Name
+                            : null;
+                        <div class="d-flex align-items-center gap-2 py-2 border-bottom">
+                            @if (t.IsCompleted)
+                            {
+                                <span class="text-success small">✅</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">⏳</span>
+                            }
+                            <div class="flex-grow-1">
+                                <a href="/task/@t.Id" class="text-decoration-none text-dark small fw-semibold">
+                                    <span class="text-muted me-1">#@t.Id</span>@t.Title
+                                </a>
+                                @if (orgNameA != null)
+                                {
+                                    <span class="badge bg-light text-dark border ms-1" style="font-size:.6rem;">🏢 @orgNameA</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @if (assignedToMe.Count > 6)
+                    {
+                        <div class="px-3 py-2 text-muted small">+ @(assignedToMe.Count - 6) outras</div>
+                    }
+                }
+                    </div>
+                </div>
             </div>
 
-            <!-- Coluna direita -->
-            <div class="col-md-6">
-
-                <!-- Tasks atribuídas a mim -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header fw-bold">
-                        👤 Atribuídas a mim
+            <!-- Últimas concluídas -->
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-transparent border-bottom py-2">
+                        <span class="text-muted small fw-semibold text-uppercase" style="font-size:0.7rem;letter-spacing:.06em;">✅ Últimas concluídas</span>
                     </div>
-                    @if (!assignedToMe.Any())
+                    <div class="card-body p-0">
+                @if (!recentlyCompleted.Any())
+                {
+                    <p class="text-muted small">Nenhuma task concluída ainda.</p>
+                }
+                else
+                {
+                    @foreach (var t in recentlyCompleted)
                     {
-                        <div class="card-body text-muted small">Nenhuma task atribuída a você.</div>
+                        <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+                            <a href="/task/@t.Id" class="text-decoration-none text-muted text-decoration-line-through small flex-grow-1">
+                                @t.Title
+                            </a>
+                            <small class="text-muted">@t.DueDate?.ToLocalTime().ToString("dd/MM")</small>
+                        </div>
+                    }
+                }
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    }
+
+    <!-- ══ SEÇÃO: ESTATÍSTICAS ══ -->
+    @if (totalTasks > 0)
+    {
+        <div class="mb-2">
+            <button class="btn btn-link text-decoration-none text-dark p-0 d-flex align-items-center gap-2 w-100"
+                    @onclick='() => sectionOpen["stats"] = !sectionOpen["stats"]'>
+                <span class="fw-bold fs-6">Estatísticas</span>
+                <hr class="flex-grow-1 my-0 ms-2" />
+                <span class="text-muted small ms-2">@(sectionOpen["stats"] ? "▲" : "▼")</span>
+            </button>
+        </div>
+
+        @if (sectionOpen["stats"])
+        {
+            <div class="row g-4 mb-4">
+
+                <!-- Por categoria -->
+                <div class="col-md-6">
+                    <p class="text-muted small fw-semibold text-uppercase mb-3" style="font-size:0.7rem;letter-spacing:.06em;">Tasks por categoria</p>
+                    @foreach (var cat in categoryStats)
+                    {
+                        var donePct = cat.Total > 0 ? cat.Done * 100 / cat.Total : 0;
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>@cat.Category</span>
+                                <span class="text-muted">@cat.Done/@cat.Total &nbsp;·&nbsp; @donePct%</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-success" style="width:@(donePct)%"></div>
+                                <div class="progress-bar bg-light" style="width:@(100 - donePct)%"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Taxa semanal -->
+                <div class="col-md-6">
+                    <p class="text-muted small fw-semibold text-uppercase mb-3" style="font-size:0.7rem;letter-spacing:.06em;">Conclusões — últimas 4 semanas</p>
+                    @if (!weeklyStats.Any(w => w.Done > 0))
+                    {
+                        <p class="text-muted small">Nenhuma task concluída nas últimas 4 semanas.</p>
                     }
                     else
                     {
-                        <ul class="list-group list-group-flush">
-                            @foreach (var t in assignedToMe.Take(5))
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <a href="/task/@t.Id" class="text-decoration-none text-dark">
-                                        <span class="text-muted me-1 small">#@t.Id</span>@t.Title
-                                    </a>
-                                    @if (t.IsCompleted)
-                                    {
-                                        <span class="badge bg-success">✅</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-secondary">⏳</span>
-                                    }
-                                </li>
-                            }
-                        </ul>
-                        @if (assignedToMe.Count > 5)
+                        var maxDone = weeklyStats.Max(w => w.Done);
+                        @foreach (var week in weeklyStats)
                         {
-                            <div class="card-footer text-muted small text-center">
-                                + @(assignedToMe.Count - 5) outras
+                            var barPct = maxDone > 0 ? week.Done * 100 / maxDone : 0;
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="text-muted">@week.Label</span>
+                                    <span class="fw-semibold">@week.Done</span>
+                                </div>
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar bg-primary" style="width:@(barPct)%"></div>
+                                </div>
                             </div>
                         }
                     }
-                </div>
-
-                <!-- Organizações -->
-                @if (userOrgs.Any())
-{
-    <div class="card border-0 shadow mb-4">
-        <div class="card-header fw-bold">🏢 Organizações</div>
-        <ul class="list-group list-group-flush">
-            @foreach (var org in userOrgs)
-            {
-                var orgPending = allTasks.Count(t =>
-                    !t.IsCompleted && t.OrganizationId == org.Id);
-                var orgOverdue = allTasks.Count(t =>
-                    !t.IsCompleted && t.OrganizationId == org.Id &&
-                    t.DueDate.HasValue && t.DueDate.Value < DateTime.UtcNow);
-
-                <li class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <a href="/tasks?orgId=@org.Id" class="text-decoration-none text-dark fw-bold">
-                            @org.Name
-                        </a>
-                        <a href="/org/@org.Id" class="badge bg-primary text-decoration-none">Ver</a>
-                    </div>
-                    <div class="d-flex gap-2 mt-1">
-                        <span class="badge bg-warning text-dark">@orgPending pendente(s)</span>
-                        @if (orgOverdue > 0)
-                        {
-                            <span class="badge bg-danger">@orgOverdue atrasada(s)</span>
-                        }
-                        <span class="badge bg-secondary">@org.Members.Count membro(s)</span>
-                    </div>
-                </li>
-            }
-        </ul>
-    </div>
-}
-
-
-                <!-- Últimas concluídas -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-header fw-bold">✅ Últimas concluídas</div>
-                    @if (!recentlyCompleted.Any())
-                    {
-                        <div class="card-body text-muted small">Nenhuma task concluída ainda.</div>
-                    }
-                    else
-                    {
-                        <ul class="list-group list-group-flush">
-                            @foreach (var t in recentlyCompleted)
+                    <div class="d-flex justify-content-between small mt-3 pt-2 border-top">
+                        <span class="text-muted">Esta semana vs anterior</span>
+                        <span>
+                            <strong>@thisWeekDone</strong>
+                            @if (thisWeekDone > lastWeekDone)
                             {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <a href="/task/@t.Id" class="text-decoration-none text-muted text-decoration-line-through">
-                                        @t.Title
-                                    </a>
-                                    <small class="text-muted">@t.DueDate?.ToLocalTime().ToString("dd/MM")</small>
-                                </li>
+                                <span class="text-success ms-1">▲ +@(thisWeekDone - lastWeekDone)</span>
                             }
-                        </ul>
-                    }
+                            else if (thisWeekDone < lastWeekDone)
+                            {
+                                <span class="text-danger ms-1">▼ -@(lastWeekDone - thisWeekDone)</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted ms-1">= igual</span>
+                            }
+                        </span>
+                    </div>
                 </div>
 
             </div>
-        </div>
+        }
     }
+}
 
 @code {
     private bool loading = true;
@@ -342,17 +418,34 @@ else
     private int overdueTasks;
     private int completionPct;
 
+    private List<TaskItem> allTasks = new();
     private List<TaskItem> urgentTasks = new();
     private List<TaskItem> dueTodayTasks = new();
     private List<TaskItem> assignedToMe = new();
     private List<TaskItem> pendingReviews = new();
     private List<TaskItem> recentlyCompleted = new();
-    private List<Organization> userOrgs = new();
     private List<TaskItem> blockedTasks = new();
     private List<TaskItem> dueSoonTasks = new();
-    private List<TaskItem> allTasks = new();
+    private List<Organization> userOrgs = new();
 
+    // Lista unificada "Para fazer agora"
+    private record TodoItem(TaskItem Task, string TypeLabel, string BadgeClass);
+    private List<TodoItem> todoList = new();
 
+    // Seções colapsáveis — "todo" e "context" abertas por padrão, "blocked" e "stats" fechadas
+    private Dictionary<string, bool> sectionOpen = new()
+    {
+        ["blocked"] = false,
+        ["todo"]    = true,
+        ["context"] = true,
+        ["stats"]   = false,
+    };
+
+    // Estatísticas
+    private List<(string Category, int Total, int Done)> categoryStats = new();
+    private List<(string Label, int Done)> weeklyStats = new();
+    private int thisWeekDone;
+    private int lastWeekDone;
 
     protected override async Task OnInitializedAsync()
     {
@@ -363,10 +456,8 @@ else
         var user = await UserManager.FindByIdAsync(currentUserId!);
         userName = user?.UserName ?? "usuário";
 
-        // Tasks pessoais
+        // Tasks pessoais + orgs
         allTasks = await TaskService.GetAllTasksAsync(currentUserId, null);
-
-        // Tasks de todas as orgs
         userOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId!);
         foreach (var org in userOrgs)
         {
@@ -377,10 +468,10 @@ else
         var now = DateTime.UtcNow;
         var today = DateTime.UtcNow.Date;
 
-        totalTasks = allTasks.Count;
+        totalTasks    = allTasks.Count;
         completedTasks = allTasks.Count(t => t.IsCompleted);
-        pendingTasks = allTasks.Count(t => !t.IsCompleted);
-        overdueTasks = allTasks.Count(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate.Value < now);
+        pendingTasks  = allTasks.Count(t => !t.IsCompleted);
+        overdueTasks  = allTasks.Count(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate.Value < now);
         completionPct = totalTasks > 0 ? (completedTasks * 100 / totalTasks) : 0;
 
         urgentTasks = allTasks
@@ -389,31 +480,8 @@ else
             .ToList();
 
         dueTodayTasks = allTasks
-            .Where(t => !t.IsCompleted && t.DueDate.HasValue &&
-                        t.DueDate.Value.Date == today)
+            .Where(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate.Value.Date == today)
             .OrderBy(t => t.Priority)
-            .ToList();
-
-        blockedTasks = allTasks
-            .Where(t => !t.IsCompleted &&
-                t.DependencyOnTaskIds != null && t.DependencyOnTaskIds.Any())
-            .Where(t => allTasks.Any(dep =>
-                t.DependencyOnTaskIds!.Contains(dep.Id) && !dep.IsCompleted))
-            .OrderBy(t => t.Priority)
-            .ToList();
-
-        dueSoonTasks = allTasks
-            .Where(t => !t.IsCompleted && t.DueDate.HasValue &&
-                        t.DueDate.Value.Date > today &&
-                        t.DueDate.Value.Date <= today.AddDays(7))
-            .OrderBy(t => t.DueDate)
-            .ToList();
-
-
-        assignedToMe = allTasks
-            .Where(t => t.AssignedToUserIds != null && t.AssignedToUserIds.Contains(currentUserId!))
-            .OrderBy(t => t.IsCompleted)
-            .ThenBy(t => t.Priority)
             .ToList();
 
         pendingReviews = allTasks
@@ -422,11 +490,70 @@ else
                         (t.ReviewedByUserId == null || !t.ReviewedByUserId.Contains(currentUserId!)))
             .ToList();
 
+        blockedTasks = allTasks
+            .Where(t => !t.IsCompleted && t.DependencyOnTaskIds != null && t.DependencyOnTaskIds.Any())
+            .Where(t => allTasks.Any(dep => t.DependencyOnTaskIds!.Contains(dep.Id) && !dep.IsCompleted))
+            .OrderBy(t => t.Priority)
+            .ToList();
+
+        assignedToMe = allTasks
+            .Where(t => t.AssignedToUserIds != null && t.AssignedToUserIds.Contains(currentUserId!))
+            .OrderBy(t => t.IsCompleted)
+            .ThenBy(t => t.Priority)
+            .ToList();
+
         recentlyCompleted = allTasks
             .Where(t => t.IsCompleted)
             .OrderByDescending(t => t.DueDate)
             .Take(5)
             .ToList();
+
+        // Lista unificada "Para fazer agora" — urgentes + hoje + revisões, sem duplicatas
+        var todoSet = new HashSet<int>();
+
+        foreach (var t in pendingReviews)
+            if (todoSet.Add(t.Id))
+                todoList.Add(new TodoItem(t, "🔍 Revisão", "bg-info text-dark"));
+
+        foreach (var t in dueTodayTasks)
+            if (todoSet.Add(t.Id))
+                todoList.Add(new TodoItem(t, "⏰ Hoje", "bg-warning text-dark"));
+
+        foreach (var t in urgentTasks)
+            if (todoSet.Add(t.Id))
+                todoList.Add(new TodoItem(t, "🔴 Urgente", "bg-danger"));
+
+        todoList = todoList.OrderBy(i => i.Task.Priority).ToList();
+
+        // Estatísticas por categoria
+        categoryStats = allTasks
+            .GroupBy(t => t.Category ?? "Geral")
+            .Select(g => (Category: g.Key, Total: g.Count(), Done: g.Count(t => t.IsCompleted)))
+            .OrderByDescending(g => g.Total)
+            .ToList();
+
+        // Taxa semanal — últimas 4 semanas
+        var monday = today.AddDays(-(int)today.DayOfWeek + (int)DayOfWeek.Monday);
+        if (today.DayOfWeek == DayOfWeek.Sunday) monday = monday.AddDays(-7);
+
+        weeklyStats = Enumerable.Range(0, 4)
+            .Select(i =>
+            {
+                var weekStart = monday.AddDays(-7 * (3 - i));
+                var weekEnd   = weekStart.AddDays(7);
+                var label     = i == 3 ? "Esta semana"
+                              : i == 2 ? "Sem. passada"
+                              : weekStart.ToString("dd/MM");
+                var done = allTasks.Count(t =>
+                    t.IsCompleted &&
+                    t.CreatedAt.Date >= weekStart &&
+                    t.CreatedAt.Date < weekEnd);
+                return (Label: label, Done: done);
+            })
+            .ToList();
+
+        thisWeekDone = weeklyStats.LastOrDefault().Done;
+        lastWeekDone = weeklyStats.Count >= 2 ? weeklyStats[^2].Done : 0;
 
         loading = false;
     }
