@@ -147,9 +147,13 @@ else
         <div class="card mb-3 @(task.IsCompleted ? "border-success opacity-75" : "")">
             <div class="card-header d-flex justify-content-between align-items-start">
                 <div class="d-flex align-items-center gap-2">
+                    @{
+                        var _canComplete = !taskCanComplete.TryGetValue(task.Id, out var _cp) || _cp;
+                        var _blocked = pendingDependencies.Contains(task.Id);
+                    }
                     <input type="checkbox" class="form-check-input mt-0" checked="@task.IsCompleted"
-                           disabled="@(pendingDependencies.Contains(task.Id))" @onchange="() => ToggleComplete(task.Id)"
-                           style="width:1.2rem;height:1.2rem;cursor:@(pendingDependencies.Contains(task.Id) ? "not-allowed" : "pointer");" />
+                           disabled="@(_blocked || !_canComplete)" @onchange="() => ToggleComplete(task.Id)"
+                           style="width:1.2rem;height:1.2rem;cursor:@((_blocked || !_canComplete) ? "not-allowed" : "pointer");" />
                     <h5 class="mb-0">
                         <a href="/task/@task.Id"
                                class="text-decoration-none @(task.IsCompleted ? "text-decoration-line-through text-muted" : "text-dark")">
@@ -259,12 +263,18 @@ else
                 }
             </div>
             <div class="card-footer text-end">
-                <a href="/edit-task/@task.Id" class="btn btn-outline-primary btn-sm me-2">
-                    <i class="bi bi-pencil"></i> Editar
-                </a>
-                <button class="btn btn-outline-danger btn-sm" @onclick="() => ShowDeleteConfirm(task.Id)">
-                    <i class="bi bi-trash"></i> Excluir
-                </button>
+                @if (!taskCanEdit.TryGetValue(task.Id, out var _canEdit) || _canEdit)
+                {
+                    <a href="/edit-task/@task.Id" class="btn btn-outline-primary btn-sm me-2">
+                        <i class="bi bi-pencil"></i> Editar
+                    </a>
+                }
+                @if (!taskCanDelete.TryGetValue(task.Id, out var _canDelete) || _canDelete)
+                {
+                    <button class="btn btn-outline-danger btn-sm" @onclick="() => ShowDeleteConfirm(task.Id)">
+                        <i class="bi bi-trash"></i> Excluir
+                    </button>
+                }
             </div>
         </div>
     }
@@ -312,6 +322,9 @@ else
     private bool filterCreatedByMe = false;
     private bool filterBlocked = false;
     private int? lastOrgId;
+    private Dictionary<int, bool> taskCanDelete = new();
+    private Dictionary<int, bool> taskCanEdit = new();
+    private Dictionary<int, bool> taskCanComplete = new();
 
 
     protected override async Task OnInitializedAsync()
@@ -360,6 +373,7 @@ else
             .Distinct().OrderBy(t => t).ToList();
 
         await LoadPendingDependencies();
+        await LoadTaskPermissions();
         ApplyFilters();
     }
 
@@ -374,6 +388,42 @@ else
         Nav.LocationChanged -= OnLocationChanged;
     }
 
+
+    private async Task LoadTaskPermissions()
+    {
+        taskCanDelete.Clear();
+        taskCanEdit.Clear();
+        taskCanComplete.Clear();
+
+        foreach (var t in allTasks)
+        {
+            if (t.OrganizationId.HasValue)
+            {
+                var org = await OrgService.GetOrganizationByIdAsync(t.OrganizationId.Value);
+                var role = await OrgService.GetUserRoleAsync(t.OrganizationId.Value, currentUserId!);
+                if (org != null && role.HasValue)
+                {
+                    taskCanDelete[t.Id] = OrgService.CanDeleteTask(org, role.Value);
+                    taskCanEdit[t.Id]   = OrgService.CanEditTask(org, role.Value);
+                    // Assignees always can complete regardless of policy
+                    var isAssignee = t.AssignedToUserIds?.Contains(currentUserId ?? "") == true;
+                    taskCanComplete[t.Id] = isAssignee || OrgService.CanCompleteTask(org, role.Value);
+                }
+                else
+                {
+                    taskCanDelete[t.Id] = taskCanEdit[t.Id] = taskCanComplete[t.Id] = false;
+                }
+            }
+            else
+            {
+                // Task pessoal — só o autor edita/deleta; autor ou assignee conclui
+                taskCanEdit[t.Id]     = t.AuthorUserId == currentUserId;
+                taskCanDelete[t.Id]   = t.AuthorUserId == currentUserId;
+                taskCanComplete[t.Id] = t.AuthorUserId == currentUserId
+                                        || (t.AssignedToUserIds?.Contains(currentUserId ?? "") == true);
+            }
+        }
+    }
 
     private void ApplyFilters()
     {
@@ -465,7 +515,7 @@ t.DueDate.Value.ToLocalTime().Date <= today.AddDays(7)),
 
     private async Task ConfirmDelete()
     {
-        await TaskService.DeleteTaskAsync(taskToDeleteId);
+        await TaskService.DeleteTaskAsync(taskToDeleteId, currentUserId);
         showDeleteConfirm = false;
         await OnInitializedAsync();
     }

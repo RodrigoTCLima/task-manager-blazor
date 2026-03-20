@@ -77,6 +77,9 @@ public class OrganizationService
         existing.Description = org.Description;
         existing.AllowJoinRequests = org.AllowJoinRequests;
         existing.TaskCreationPolicy = org.TaskCreationPolicy;
+        existing.TaskEditPolicy = org.TaskEditPolicy;
+        existing.TaskDeletePolicy = org.TaskDeletePolicy;
+        existing.TaskCompletePolicy = org.TaskCompletePolicy;
 
         await _context.SaveChangesAsync();
     }
@@ -296,6 +299,39 @@ public class OrganizationService
             TaskCreationPolicy.OwnerOnly => role == MemberRole.Owner,
             TaskCreationPolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
             TaskCreationPolicy.AllMembers => true,
+            _ => false
+        };
+    }
+
+    public bool CanEditTask(Organization org, MemberRole role)
+    {
+        return org.TaskEditPolicy switch
+        {
+            TaskEditPolicy.OwnerOnly => role == MemberRole.Owner,
+            TaskEditPolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
+            TaskEditPolicy.AllMembers => true,
+            _ => false
+        };
+    }
+
+    public bool CanDeleteTask(Organization org, MemberRole role)
+    {
+        return org.TaskDeletePolicy switch
+        {
+            TaskDeletePolicy.OwnerOnly => role == MemberRole.Owner,
+            TaskDeletePolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
+            TaskDeletePolicy.AllMembers => true,
+            _ => false
+        };
+    }
+
+    public bool CanCompleteTask(Organization org, MemberRole role)
+    {
+        return org.TaskCompletePolicy switch
+        {
+            TaskCompletePolicy.OwnerOnly => role == MemberRole.Owner,
+            TaskCompletePolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
+            TaskCompletePolicy.AllMembers => true,
             _ => false
         };
     }

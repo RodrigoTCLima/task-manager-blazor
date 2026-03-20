@@ -463,7 +463,7 @@
         if (TaskId.HasValue && editingTask != null)
         {
             taskModel.Id = editingTask.Id;
-            await TaskService.UpdateTaskAsync(taskModel);
+            await TaskService.UpdateTaskAsync(taskModel, currentUserId);
         }
         else
         {

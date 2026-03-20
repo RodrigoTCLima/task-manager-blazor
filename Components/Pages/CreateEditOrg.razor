@@ -39,6 +39,33 @@
             </InputSelect>
         </div>
 
+        <div class="mb-3">
+            <label class="form-label fw-bold">Quem pode editar tarefas</label>
+            <InputSelect @bind-Value="model.TaskEditPolicy" class="form-select">
+                <option value="@TaskEditPolicy.AllMembers">Todos os membros</option>
+                <option value="@TaskEditPolicy.AdminsAndOwner">Admins e Owner</option>
+                <option value="@TaskEditPolicy.OwnerOnly">Somente Owner</option>
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Quem pode concluir tarefas</label>
+            <InputSelect @bind-Value="model.TaskCompletePolicy" class="form-select">
+                <option value="@TaskCompletePolicy.AllMembers">Todos os membros</option>
+                <option value="@TaskCompletePolicy.AdminsAndOwner">Admins e Owner</option>
+                <option value="@TaskCompletePolicy.OwnerOnly">Somente Owner</option>
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Quem pode deletar tarefas</label>
+            <InputSelect @bind-Value="model.TaskDeletePolicy" class="form-select">
+                <option value="@TaskDeletePolicy.AllMembers">Todos os membros</option>
+                <option value="@TaskDeletePolicy.AdminsAndOwner">Admins e Owner</option>
+                <option value="@TaskDeletePolicy.OwnerOnly">Somente Owner</option>
+            </InputSelect>
+        </div>
+
         <div class="mb-4">
             <div class="form-check">
                 <InputCheckbox @bind-Value="model.AllowJoinRequests" class="form-check-input" id="allowJoin" />
@@ -94,7 +121,10 @@
                 Name = editingOrg.Name,
                 Description = editingOrg.Description,
                 AllowJoinRequests = editingOrg.AllowJoinRequests,
-                TaskCreationPolicy = editingOrg.TaskCreationPolicy
+                TaskCreationPolicy = editingOrg.TaskCreationPolicy,
+                TaskEditPolicy = editingOrg.TaskEditPolicy,
+                TaskDeletePolicy = editingOrg.TaskDeletePolicy,
+                TaskCompletePolicy = editingOrg.TaskCompletePolicy
             };
         }
     }

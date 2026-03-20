@@ -27,10 +27,7 @@ else
                 {
                     <p class="text-muted">@org.Description</p>
                 }
-                <div class="d-flex gap-2">
-                    <span class="badge bg-secondary">
-                        Política: @org.TaskCreationPolicy
-                    </span>
+                <div class="d-flex flex-wrap gap-2 mt-1">
                     @if (org.AllowJoinRequests)
                     {
                         <span class="badge bg-info text-dark">🔓 Aberta</span>
@@ -39,6 +36,24 @@ else
                     {
                         <span class="badge bg-secondary">🔒 Fechada</span>
                     }
+                </div>
+                <!-- Políticas de permissão -->
+                <div class="mt-3">
+                    <p class="text-muted small fw-semibold text-uppercase mb-2" style="font-size:0.7rem;letter-spacing:.05em;">Permissões</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge bg-light text-dark border" title="Quem pode criar tarefas">
+                            ➕ Criar: @PolicyLabel(org.TaskCreationPolicy.ToString())
+                        </span>
+                        <span class="badge bg-light text-dark border" title="Quem pode editar tarefas">
+                            ✏️ Editar: @PolicyLabel(org.TaskEditPolicy.ToString())
+                        </span>
+                        <span class="badge bg-light text-dark border" title="Quem pode concluir tarefas">
+                            ✅ Concluir: @PolicyLabel(org.TaskCompletePolicy.ToString())
+                        </span>
+                        <span class="badge bg-light text-dark border" title="Quem pode deletar tarefas">
+                            🗑️ Deletar: @PolicyLabel(org.TaskDeletePolicy.ToString())
+                        </span>
+                    </div>
                 </div>
             </div>
             <div class="d-flex gap-2 flex-wrap justify-content-end">
@@ -302,5 +317,13 @@ else
         MemberRole.Owner => "bg-danger",
         MemberRole.Admin => "bg-warning text-dark",
         _ => "bg-secondary"
+    };
+
+    private string PolicyLabel(string policy) => policy switch
+    {
+        "OwnerOnly"      => "Somente Owner",
+        "AdminsAndOwner" => "Admins e Owner",
+        "AllMembers"     => "Todos",
+        _                => policy
     };
 }

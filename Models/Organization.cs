@@ -11,6 +11,27 @@ public enum TaskCreationPolicy
     AllMembers
 }
 
+public enum TaskEditPolicy
+{
+    OwnerOnly,
+    AdminsAndOwner,
+    AllMembers
+}
+
+public enum TaskDeletePolicy
+{
+    OwnerOnly,
+    AdminsAndOwner,
+    AllMembers
+}
+
+public enum TaskCompletePolicy
+{
+    OwnerOnly,
+    AdminsAndOwner,
+    AllMembers
+}
+
 public class Organization
 {
     public int Id { get; set; }
@@ -24,11 +45,14 @@ public class Organization
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public string OwnerId { get; set; } = string.Empty; // IdentityUser Id
+    public string OwnerId { get; set; } = string.Empty;
 
     public bool AllowJoinRequests { get; set; } = false;
 
     public TaskCreationPolicy TaskCreationPolicy { get; set; } = TaskCreationPolicy.OwnerOnly;
+    public TaskEditPolicy TaskEditPolicy { get; set; } = TaskEditPolicy.AllMembers;
+    public TaskDeletePolicy TaskDeletePolicy { get; set; } = TaskDeletePolicy.AdminsAndOwner;
+    public TaskCompletePolicy TaskCompletePolicy { get; set; } = TaskCompletePolicy.AllMembers;
 
     public List<OrganizationMember> Members { get; set; } = new();
     public List<OrganizationInvite> Invites { get; set; } = new();

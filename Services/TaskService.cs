@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using TaskManager.Data;
 using TaskManager.Models;
 using TaskManager.DTOs;
@@ -13,12 +14,18 @@ public class TaskService
 {
     private readonly AppDbContext _context;
     private readonly NotificationService _notificationService;
+    private readonly IServiceProvider _serviceProvider;
 
-    public TaskService(AppDbContext context, NotificationService notificationService)
+    public TaskService(AppDbContext context, NotificationService notificationService, IServiceProvider serviceProvider)
     {
         _context = context;
         _notificationService = notificationService;
+        _serviceProvider = serviceProvider;
     }
+
+    // Resolve OrganizationService lazily to avoid circular DI
+    private OrganizationService OrgService =>
+        _serviceProvider.GetRequiredService<OrganizationService>();
     public async Task<List<TaskItem>> GetAllTasksAsync(string? userId = null, int? orgId = null)
     {
         IQueryable<TaskItem> query = _context.Tasks
@@ -56,10 +63,26 @@ public class TaskService
         return task;
     }
 
-    public async Task UpdateTaskAsync(TaskItem task)
+    public async Task UpdateTaskAsync(TaskItem task, string? requestingUserId = null)
     {
         var existing = await _context.Tasks.FindAsync(task.Id);
         if (existing == null) return;
+
+        // Backend permission guard
+        if (requestingUserId != null)
+        {
+            if (existing.OrganizationId.HasValue)
+            {
+                var org = await OrgService.GetOrganizationByIdAsync(existing.OrganizationId.Value);
+                var role = await OrgService.GetUserRoleAsync(existing.OrganizationId.Value, requestingUserId);
+                if (org == null || !role.HasValue || !OrgService.CanEditTask(org, role.Value))
+                    return; // silently block
+            }
+            else if (existing.AuthorUserId != requestingUserId)
+            {
+                return; // only author can edit personal tasks
+            }
+        }
 
         var existingReviewedCount = existing.ReviewedByUserId?.Count ?? 0;
         var newReviewedCount = task.ReviewedByUserId?.Count ?? 0;
@@ -101,14 +124,29 @@ public class TaskService
     }
 
 
-    public async Task DeleteTaskAsync(int id)
+    public async Task DeleteTaskAsync(int id, string? requestingUserId = null)
     {
         var task = await _context.Tasks.FindAsync(id);
-        if (task != null)
+        if (task == null) return;
+
+        // Backend permission guard
+        if (requestingUserId != null)
         {
-            _context.Tasks.Remove(task);
-            await _context.SaveChangesAsync();
+            if (task.OrganizationId.HasValue)
+            {
+                var org = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
+                var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, requestingUserId);
+                if (org == null || !role.HasValue || !OrgService.CanDeleteTask(org, role.Value))
+                    return; // silently block
+            }
+            else if (task.AuthorUserId != requestingUserId)
+            {
+                return; // only author can delete personal tasks
+            }
         }
+
+        _context.Tasks.Remove(task);
+        await _context.SaveChangesAsync();
     }
 
     // Listar comentários de uma tarefa
@@ -170,6 +208,25 @@ public class TaskService
     {
         var task = await _context.Tasks.FindAsync(id);
         if (task == null) return;
+
+        // Backend permission guard — assignees always allowed regardless of policy
+        var isAssignee = task.AssignedToUserIds?.Contains(completedByUserId) == true;
+        var isAuthor   = task.AuthorUserId == completedByUserId;
+
+        if (!isAssignee && !isAuthor)
+        {
+            if (task.OrganizationId.HasValue)
+            {
+                var org  = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
+                var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, completedByUserId);
+                if (org == null || !role.HasValue || !OrgService.CanCompleteTask(org, role.Value))
+                    return; // silently block
+            }
+            else
+            {
+                return; // personal task — only author or assignee
+            }
+        }
 
         task.IsCompleted = !task.IsCompleted;
         await _context.SaveChangesAsync();

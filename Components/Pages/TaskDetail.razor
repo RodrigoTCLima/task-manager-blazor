@@ -4,6 +4,7 @@
 @using TaskManager.Services
 @using Microsoft.AspNetCore.Identity
 @inject TaskService TaskService
+@inject OrganizationService OrgService
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<IdentityUser> UserManager
@@ -48,6 +49,13 @@ else
                 {
                     <span style="font-size:1.2rem; cursor:not-allowed;" title="Conclua as revisões primeiro">🔍</span>
                     <label class="form-check-label fw-bold ms-1 text-info">Aguardando Revisão</label>
+                }
+                else if (!canComplete)
+                {
+                    <span style="font-size:1.2rem; cursor:not-allowed;" title="Você não tem permissão para concluir esta tarefa">🔒</span>
+                    <label class="form-check-label fw-bold ms-1 text-muted">
+                        @(task.IsCompleted ? "Concluída" : "Pendente")
+                    </label>
                 }
                 else
                 {
@@ -306,7 +314,10 @@ else
                 <!-- Botões -->
                 <div class="d-flex gap-2 mt-4">
                     <a href="/dashboard" class="btn btn-outline-secondary">← Voltar ao Dashboard</a>
-                    <a href="/edit-task/@task.Id" class="btn btn-primary">✏️ Editar</a>
+                    @if (canEdit)
+                    {
+                        <a href="/edit-task/@task.Id" class="btn btn-primary">✏️ Editar</a>
+                    }
                 </div>
 
             </div>
@@ -322,6 +333,9 @@ else
     private bool isReviewer;
     private bool hasCurrentUserReviewed;
     private Dictionary<string, string> reviewerNames = new();
+    private bool canEdit = true;
+    private bool canComplete = true;
+    private bool canDelete = true;
 
 
     protected override async Task OnInitializedAsync()
@@ -353,6 +367,34 @@ else
         {
             isReviewer = task.ReviewByUserId?.Contains(currentUserId) == true;
             hasCurrentUserReviewed = task.ReviewedByUserId?.Contains(currentUserId) == true;
+
+            // Permissões granulares — só se for task de org
+            if (task.OrganizationId.HasValue)
+            {
+                var org = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
+                var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, currentUserId);
+                if (org != null && role.HasValue)
+                {
+                    canEdit   = OrgService.CanEditTask(org, role.Value);
+                    canDelete = OrgService.CanDeleteTask(org, role.Value);
+                    // Assignees always can complete regardless of policy
+                    var isAssignee = task.AssignedToUserIds?.Contains(currentUserId) == true;
+                    canComplete = isAssignee || OrgService.CanCompleteTask(org, role.Value);
+                }
+                else
+                {
+                    // Não é membro — sem permissão
+                    canEdit = canComplete = canDelete = false;
+                }
+            }
+            else
+            {
+                // Task pessoal — só o autor pode editar/concluir/deletar
+                canEdit     = task.AuthorUserId == currentUserId;
+                canComplete = task.AuthorUserId == currentUserId
+                              || (task.AssignedToUserIds?.Contains(currentUserId) == true);
+                canDelete   = task.AuthorUserId == currentUserId;
+            }
         }
     }
 
