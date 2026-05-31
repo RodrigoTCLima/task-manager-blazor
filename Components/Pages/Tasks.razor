@@ -15,9 +15,14 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>Gerenciador de Tarefas</h1>
-    <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success">
-        <i class="bi bi-plus-circle"></i> Nova Tarefa
-    </a>
+    <div class="d-flex gap-2">
+        <a href="/calendar@(orgId.HasValue ? $"?orgId={orgId}" : "")" class="btn btn-outline-secondary">
+            <i class="bi bi-calendar3"></i> Calendário
+        </a>
+        <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Nova Tarefa
+        </a>
+    </div>
 </div>
 
 @if (orgId.HasValue)
@@ -115,7 +120,13 @@
         </div>
 
         <div class="mt-2">
-            <small class="text-muted">Mostrando @filteredTasks.Count de @allTasks.Count tarefas</small>
+            <small class="text-muted">
+                @filteredTasks.Count resultado(s) de @allTasks.Count tarefas
+                @if (totalPages > 1)
+                {
+                    <span>· página @currentPage de @totalPages</span>
+                }
+            </small>
         </div>
     </div>
 </div>
@@ -142,7 +153,7 @@ else if (!filteredTasks.Any())
 }
 else
 {
-    @foreach (var task in filteredTasks)
+    @foreach (var task in pagedTasks)
     {
         <div class="card mb-3 @(task.IsCompleted ? "border-success opacity-75" : "")">
             <div class="card-header d-flex justify-content-between align-items-start">
@@ -280,6 +291,47 @@ else
     }
 }
 
+<!-- Paginação -->
+@if (!isLoading && filteredTasks.Any())
+{
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
+        <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">Por página:</small>
+            <select class="form-select form-select-sm" style="width:80px;"
+                    @bind="pageSize" @bind:after="() => currentPage = 1">
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+            </select>
+            <small class="text-muted ms-2">
+                @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, filteredTasks.Count))
+                de @filteredTasks.Count
+            </small>
+        </div>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => currentPage--" disabled="@(currentPage == 1)">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                </li>
+                @for (var p = Math.Max(1, currentPage - 2); p <= Math.Min(totalPages, currentPage + 2); p++)
+                {
+                    var pg = p;
+                    <li class="page-item @(pg == currentPage ? "active" : "")">
+                        <button class="page-link" @onclick="() => currentPage = pg">@pg</button>
+                    </li>
+                }
+                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => currentPage++" disabled="@(currentPage == totalPages)">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}
+
 @if (showDeleteConfirm)
 {
     <div class="modal show d-block" tabindex="-1" style="background-color:rgba(0,0,0,0.5);">
@@ -323,6 +375,14 @@ else
     private bool filterBlocked = false;
     private int? lastOrgId;
     private Dictionary<int, bool> taskCanDelete = new();
+    // Paginação
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages => (int)Math.Ceiling((double)filteredTasks.Count / pageSize);
+    private List<TaskItem> pagedTasks => filteredTasks
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize)
+        .ToList();
     private Dictionary<int, bool> taskCanEdit = new();
     private Dictionary<int, bool> taskCanComplete = new();
 
@@ -475,6 +535,7 @@ t.DueDate.Value.ToLocalTime().Date <= today.AddDays(7)),
         };
 
         filteredTasks = result.ToList();
+        currentPage = 1; // reset to first page on filter change
     }
 
     private void ClearFilters()

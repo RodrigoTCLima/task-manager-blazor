@@ -1,0 +1,376 @@
+@page "/calendar"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using TaskManager.Models
+@using TaskManager.Services
+@inject TaskService TaskService
+@inject OrganizationService OrgService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<PageTitle>Calendário de Tarefas</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-calendar3 text-primary"></i>
+        <h5 class="mb-0">Calendário</h5>
+    </div>
+    <a href="/tasks@(orgId.HasValue ? $"?orgId={orgId}" : "")" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-list-task me-1"></i>Lista
+    </a>
+</div>
+
+@if (orgId.HasValue && orgName != null)
+{
+    <div class="alert alert-primary d-flex justify-content-between align-items-center py-2 mb-3">
+        <span>🏢 <strong>@orgName</strong></span>
+        <a href="/org/@orgId" class="btn btn-sm btn-outline-primary">Ver Painel</a>
+    </div>
+}
+
+<!-- Controles -->
+<div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+
+    <!-- Navegação de mês/semana -->
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Prev">
+            <i class="bi bi-chevron-left"></i>
+        </button>
+        <span class="fw-semibold" style="min-width: 160px; text-align:center;">
+            @GetPeriodLabel()
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Next">
+            <i class="bi bi-chevron-right"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-primary" @onclick="GoToToday">Hoje</button>
+    </div>
+
+    <!-- Seletor de visão -->
+    <div class="btn-group btn-group-sm">
+        <button class="btn @(viewMode == "month" ? "btn-primary" : "btn-outline-primary")"
+                @onclick='() => SetView("month")'>
+            <i class="bi bi-calendar-month me-1"></i>Mês
+        </button>
+        <button class="btn @(viewMode == "week" ? "btn-primary" : "btn-outline-primary")"
+                @onclick='() => SetView("week")'>
+            <i class="bi bi-calendar-week me-1"></i>Semana
+        </button>
+    </div>
+
+    <!-- Tipo de data -->
+    <div class="d-flex align-items-center gap-2">
+        <small class="text-muted">Exibir por:</small>
+        <select class="form-select form-select-sm" style="width: auto;"
+                @bind="dateType" @bind:after="BuildCalendar">
+            <option value="due">📅 Data de vencimento</option>
+            <option value="created">🕐 Data de criação</option>
+        </select>
+    </div>
+
+</div>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <!-- Grade do calendário -->
+    <div class="calendar-grid">
+
+        <!-- Cabeçalho dos dias da semana -->
+        <div class="calendar-weekdays">
+            @foreach (var day in new[] { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" })
+            {
+                <div class="calendar-weekday">@day</div>
+            }
+        </div>
+
+        <!-- Células -->
+        <div class="calendar-cells">
+            @foreach (var cell in calendarCells)
+            {
+                var isToday = cell.Date == DateTime.Today;
+                var isCurrentMonth = viewMode == "week" || cell.Date.Month == currentDate.Month;
+                var tasks = cell.Tasks;
+
+                <div class="calendar-cell @(isToday ? "today" : "") @(!isCurrentMonth ? "other-month" : "")"
+                     @onclick="() => NavigateToNewTask(cell.Date)">
+                    <div class="cell-date @(isToday ? "fw-bold text-primary" : "") d-flex align-items-center justify-content-between">
+                        <span>
+                            @cell.Date.Day
+                            @if (cell.Date.Day == 1 && viewMode == "month")
+                            {
+                                <span class="text-muted small ms-1">@cell.Date.ToString("MMM")</span>
+                            }
+                        </span>
+                        <span class="cell-add-btn" title="Nova tarefa neste dia">+</span>
+                    </div>
+                    <div class="cell-tasks">
+                        @foreach (var t in tasks.Take(3))
+                        {
+                            <a href="/task/@t.Id"
+                               class="task-pill @GetTaskPillClass(t)"
+                               title="@t.Title — Prioridade @t.Priority"
+                               @onclick:stopPropagation="true">
+                                @t.Title
+                            </a>
+                        }
+                        @if (tasks.Count > 3)
+                        {
+                            <span class="task-pill task-pill-more" @onclick:stopPropagation="true">+@(tasks.Count - 3) mais</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+    </div>
+
+    <!-- Legenda -->
+    <div class="d-flex gap-3 mt-3 flex-wrap">
+        <small class="text-muted d-flex align-items-center gap-1">
+            <span class="task-pill task-pill-overdue d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
+            Atrasada
+        </small>
+        <small class="text-muted d-flex align-items-center gap-1">
+            <span class="task-pill task-pill-urgent d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
+            Urgente (P≤5)
+        </small>
+        <small class="text-muted d-flex align-items-center gap-1">
+            <span class="task-pill task-pill-completed d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
+            Concluída
+        </small>
+        <small class="text-muted d-flex align-items-center gap-1">
+            <span class="task-pill task-pill-normal d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
+            Normal
+        </small>
+    </div>
+}
+
+<style>
+    .calendar-grid { border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
+
+    .calendar-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .calendar-weekday {
+        text-align: center;
+        padding: 8px 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .calendar-cells {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+    }
+
+    .calendar-cell {
+        min-height: 100px;
+        border-right: 1px solid #dee2e6;
+        border-bottom: 1px solid #dee2e6;
+        padding: 6px;
+        vertical-align: top;
+        background: white;
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    .calendar-cell:hover { background: #f5f9ff !important; }
+    .calendar-cell.other-month:hover { background: #f0f0f0 !important; }
+
+    .cell-add-btn {
+        font-size: 1rem;
+        color: #adb5bd;
+        font-weight: 300;
+        line-height: 1;
+        opacity: 0;
+        transition: opacity 0.15s;
+        padding: 0 2px;
+        border-radius: 3px;
+    }
+    .calendar-cell:hover .cell-add-btn { opacity: 1; color: #0d6efd; }
+    .calendar-cell:nth-child(7n) { border-right: none; }
+    .calendar-cell.today { background: #f0f7ff; }
+    .calendar-cell.other-month { background: #fafafa; }
+    .calendar-cell.other-month .cell-date { color: #adb5bd; }
+
+    .cell-date {
+        font-size: 0.85rem;
+        margin-bottom: 4px;
+        color: #495057;
+    }
+
+    .cell-tasks { display: flex; flex-direction: column; gap: 2px; }
+
+    .task-pill {
+        display: block;
+        font-size: 0.7rem;
+        padding: 1px 5px;
+        border-radius: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+    }
+    .task-pill:hover { opacity: 0.85; color: white; }
+
+    .task-pill-overdue  { background: #dc3545; }
+    .task-pill-urgent   { background: #fd7e14; }
+    .task-pill-completed { background: #198754; }
+    .task-pill-normal   { background: #0d6efd; }
+    .task-pill-more     { background: #6c757d; cursor: default; }
+
+    @@media (max-width: 768px) {
+        .calendar-cell { min-height: 60px; }
+        .task-pill { font-size: 0.6rem; }
+    }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private string? currentUserId;
+    private int? orgId;
+    private string? orgName;
+
+    private string viewMode = "month";   // "month" | "week"
+    private string dateType = "due";     // "due" | "created"
+    private DateTime currentDate = DateTime.Today;
+
+    private List<TaskItem> allTasks = new();
+
+    private record CalendarCell(DateTime Date, List<TaskItem> Tasks);
+    private List<CalendarCell> calendarCells = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = auth.User.FindFirst(
+            System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        // Read ?orgId= from URL
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var qs = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        if (qs.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
+        {
+            orgId = parsedOrgId;
+            var org = await OrgService.GetOrganizationByIdAsync(parsedOrgId);
+            orgName = org?.Name;
+        }
+
+        allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
+        BuildCalendar();
+        isLoading = false;
+    }
+
+    private void BuildCalendar()
+    {
+        calendarCells = viewMode == "month" ? BuildMonthCells() : BuildWeekCells();
+    }
+
+    private List<CalendarCell> BuildMonthCells()
+    {
+        var cells = new List<CalendarCell>();
+        var firstDay = new DateTime(currentDate.Year, currentDate.Month, 1);
+        var startDate = firstDay.AddDays(-(int)firstDay.DayOfWeek);
+        // always render 6 weeks for consistent grid height
+        for (int i = 0; i < 42; i++)
+        {
+            var date = startDate.AddDays(i);
+            cells.Add(new CalendarCell(date, GetTasksForDate(date)));
+        }
+        return cells;
+    }
+
+    private List<CalendarCell> BuildWeekCells()
+    {
+        var cells = new List<CalendarCell>();
+        var startOfWeek = currentDate.AddDays(-(int)currentDate.DayOfWeek);
+        for (int i = 0; i < 7; i++)
+        {
+            var date = startOfWeek.AddDays(i);
+            cells.Add(new CalendarCell(date, GetTasksForDate(date)));
+        }
+        return cells;
+    }
+
+    private List<TaskItem> GetTasksForDate(DateTime date)
+    {
+        return allTasks.Where(t =>
+        {
+            var taskDate = dateType == "due"
+                ? t.DueDate?.ToLocalTime().Date
+                : t.CreatedAt.ToLocalTime().Date;
+            return taskDate == date;
+        })
+        .OrderBy(t => t.Priority)
+        .ToList();
+    }
+
+    private void Prev()
+    {
+        currentDate = viewMode == "month"
+            ? currentDate.AddMonths(-1)
+            : currentDate.AddDays(-7);
+        BuildCalendar();
+    }
+
+    private void Next()
+    {
+        currentDate = viewMode == "month"
+            ? currentDate.AddMonths(1)
+            : currentDate.AddDays(7);
+        BuildCalendar();
+    }
+
+    private void GoToToday()
+    {
+        currentDate = DateTime.Today;
+        BuildCalendar();
+    }
+
+    private void SetView(string mode)
+    {
+        viewMode = mode;
+        BuildCalendar();
+    }
+
+    private string GetPeriodLabel()
+    {
+        if (viewMode == "month")
+            return currentDate.ToString("MMMM yyyy",
+                new System.Globalization.CultureInfo("pt-BR"));
+
+        var startOfWeek = currentDate.AddDays(-(int)currentDate.DayOfWeek);
+        var endOfWeek = startOfWeek.AddDays(6);
+        return $"{startOfWeek:dd/MM} – {endOfWeek:dd/MM/yyyy}";
+    }
+
+    private string GetTaskPillClass(TaskItem t)
+    {
+        if (t.IsCompleted) return "task-pill-completed";
+        if (t.DueDate.HasValue && t.DueDate.Value < DateTime.Now && !t.IsCompleted) return "task-pill-overdue";
+        if (t.Priority <= 5) return "task-pill-urgent";
+        return "task-pill-normal";
+    }
+
+    private void NavigateToNewTask(DateTime date)
+    {
+        var dateStr = date.ToString("yyyy-MM-dd");
+        var url = orgId.HasValue
+            ? $"/add-task?orgId={orgId}&dueDate={dateStr}"
+            : $"/add-task?dueDate={dateStr}";
+        Nav.NavigateTo(url);
+    }
+}

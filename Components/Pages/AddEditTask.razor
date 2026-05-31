@@ -398,6 +398,14 @@
         {
             forbiddenIds = new HashSet<int>();
         }
+
+        // Pré-preenche data de prazo se vier do calendário (?dueDate=yyyy-MM-dd)
+        // Reutiliza qs já declarado acima neste método
+        if (editingTask == null && qs.TryGetValue("dueDate", out var dueDateStr) &&
+            DateTime.TryParse(dueDateStr, out var parsedDueDate))
+        {
+            taskModel.DueDate = parsedDueDate;
+        }
     }
 
 
