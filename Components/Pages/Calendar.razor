@@ -30,9 +30,9 @@
 }
 
 <!-- Controles -->
-<div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3">
 
-    <!-- Navegação de mês/semana -->
+    <!-- Navegação -->
     <div class="d-flex align-items-center gap-2">
         <button class="btn btn-sm btn-outline-secondary" @onclick="Prev">
             <i class="bi bi-chevron-left"></i>
@@ -56,6 +56,10 @@
                 @onclick='() => SetView("week")'>
             <i class="bi bi-calendar-week me-1"></i>Semana
         </button>
+        <button class="btn @(viewMode == "agenda" ? "btn-primary" : "btn-outline-primary")"
+                @onclick='() => SetView("agenda")'>
+            <i class="bi bi-list-ul me-1"></i>Agenda
+        </button>
     </div>
 
     <!-- Tipo de data -->
@@ -63,11 +67,44 @@
         <small class="text-muted">Exibir por:</small>
         <select class="form-select form-select-sm" style="width: auto;"
                 @bind="dateType" @bind:after="BuildCalendar">
-            <option value="due">📅 Data de vencimento</option>
-            <option value="created">🕐 Data de criação</option>
+            <option value="due">📅 Vencimento</option>
+            <option value="created">🕐 Criação</option>
         </select>
     </div>
+</div>
 
+<!-- Filtros -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <small class="text-muted fw-semibold">Filtros:</small>
+            <select class="form-select form-select-sm" style="width:140px;"
+                    @bind="filterCategory" @bind:after="BuildCalendar">
+                <option value="">Todas categorias</option>
+                @foreach (var cat in availableCategories)
+                {
+                    <option value="@cat">@cat</option>
+                }
+            </select>
+            <select class="form-select form-select-sm" style="width:130px;"
+                    @bind="filterStatus" @bind:after="BuildCalendar">
+                <option value="">Todos status</option>
+                <option value="pending">Pendentes</option>
+                <option value="completed">Concluídas</option>
+                <option value="overdue">Atrasadas</option>
+            </select>
+            <div class="form-check mb-0">
+                <input class="form-check-input" type="checkbox" id="chkAssignedToMe"
+                       @bind="filterAssignedToMe" @bind:after="BuildCalendar" />
+                <label class="form-check-label small" for="chkAssignedToMe">Atribuídas a mim</label>
+            </div>
+            @if (filterCategory != "" || filterStatus != "" || filterAssignedToMe)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">✕ Limpar</button>
+            }
+            <small class="text-muted ms-auto">@filteredTasks.Count tarefa(s)</small>
+        </div>
+    </div>
 </div>
 
 @if (isLoading)
@@ -76,16 +113,62 @@
         <div class="spinner-border text-primary"></div>
     </div>
 }
+else if (viewMode == "agenda")
+{
+    <!-- VISTA DE AGENDA -->
+    @if (!agendaDays.Any(d => d.Tasks.Any()))
+    {
+        <div class="alert alert-info">Nenhuma tarefa nos próximos 30 dias.</div>
+    }
+    else
+    {
+        @foreach (var day in agendaDays.Where(d => d.Tasks.Any()))
+        {
+            var isToday = day.Date == DateTime.Today;
+            var isWeekend = day.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            <div class="agenda-day @(isToday ? "agenda-today" : "") @(isWeekend ? "agenda-weekend" : "") mb-3">
+                <div class="agenda-day-header d-flex align-items-center gap-2 mb-2">
+                    <span class="fw-bold @(isToday ? "text-primary" : "")">
+                        @day.Date.ToString("ddd, dd 'de' MMMM", new System.Globalization.CultureInfo("pt-BR"))
+                    </span>
+                    @if (isToday) { <span class="badge bg-primary">Hoje</span> }
+                    @if (isWeekend) { <span class="badge bg-light text-muted border">FDS</span> }
+                    <span class="badge bg-light text-dark border ms-auto">@day.Tasks.Count tarefa(s)</span>
+                </div>
+                @foreach (var t in day.Tasks)
+                {
+                    var pillClass = GetTaskPillClass(t);
+                    var tooltipText = GetTooltipText(t);
+                    <div class="agenda-task d-flex align-items-center gap-3 px-3 py-2 mb-1 rounded border"
+                         style="border-left: 4px solid @GetPillColor(pillClass) !important;">
+                        <a href="/task/@t.Id" class="text-decoration-none text-dark flex-grow-1 small fw-semibold">
+                            <span class="text-muted me-1">#@t.Id</span>@t.Title
+                        </a>
+                        <span class="badge @GetPriorityBadge(t.Priority)">@GetPriorityEmoji(t.Priority) @t.Priority</span>
+                        <span class="badge bg-light text-dark border small">@t.Category</span>
+                        @if (t.IsCompleted)
+                        {
+                            <span class="badge bg-success">✅ Concluída</span>
+                        }
+                        else if (t.DueDate.HasValue && t.DueDate.Value < DateTime.Now)
+                        {
+                            <span class="badge bg-danger">⚠️ Atrasada</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+}
 else
 {
-    <!-- Grade do calendário -->
+    <!-- GRADE DO CALENDÁRIO (mês / semana) -->
     <div class="calendar-grid">
-
-        <!-- Cabeçalho dos dias da semana -->
+        <!-- Cabeçalho dos dias -->
         <div class="calendar-weekdays">
-            @foreach (var day in new[] { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" })
+            @foreach (var (day, idx) in new[] { "Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb" }.Select((d, i) => (d, i)))
             {
-                <div class="calendar-weekday">@day</div>
+                <div class="calendar-weekday @(idx == 0 || idx == 6 ? "weekend-header" : "")">@day</div>
             }
         </div>
 
@@ -93,65 +176,137 @@ else
         <div class="calendar-cells">
             @foreach (var cell in calendarCells)
             {
-                var isToday = cell.Date == DateTime.Today;
+                var isToday    = cell.Date == DateTime.Today;
                 var isCurrentMonth = viewMode == "week" || cell.Date.Month == currentDate.Month;
-                var tasks = cell.Tasks;
+                var isWeekend  = cell.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+                var tasks      = cell.Tasks;
+                var indicator  = GetDayIndicator(tasks);
 
-                <div class="calendar-cell @(isToday ? "today" : "") @(!isCurrentMonth ? "other-month" : "")"
-                     @onclick="() => NavigateToNewTask(cell.Date)">
+                <div class="calendar-cell
+                            @(isToday    ? "today"       : "")
+                            @(!isCurrentMonth ? "other-month" : "")
+                            @(isWeekend  ? "weekend"     : "")"
+                     @onclick="() => OpenDayPanel(cell.Date, tasks)">
+
                     <div class="cell-date @(isToday ? "fw-bold text-primary" : "") d-flex align-items-center justify-content-between">
-                        <span>
+                        <span class="d-flex align-items-center gap-1">
                             @cell.Date.Day
                             @if (cell.Date.Day == 1 && viewMode == "month")
                             {
-                                <span class="text-muted small ms-1">@cell.Date.ToString("MMM")</span>
+                                <span class="text-muted small">@cell.Date.ToString("MMM")</span>
+                            }
+                            @if (indicator != null)
+                            {
+                                <span class="day-indicator" style="background:@indicator;"></span>
                             }
                         </span>
                         <span class="cell-add-btn" title="Nova tarefa neste dia">+</span>
                     </div>
+
                     <div class="cell-tasks">
                         @foreach (var t in tasks.Take(3))
                         {
-                            <a href="/task/@t.Id"
-                               class="task-pill @GetTaskPillClass(t)"
-                               title="@t.Title — Prioridade @t.Priority"
-                               @onclick:stopPropagation="true">
+                            var pillClass   = GetTaskPillClass(t);
+                            var tooltipText = GetTooltipText(t);
+                            <span class="task-pill @pillClass"
+                                  title="@tooltipText"
+                                  @onclick:stopPropagation="true"
+                                  @onclick="() => NavigateToTask(t.Id)">
                                 @t.Title
-                            </a>
+                            </span>
                         }
                         @if (tasks.Count > 3)
                         {
-                            <span class="task-pill task-pill-more" @onclick:stopPropagation="true">+@(tasks.Count - 3) mais</span>
+                            <span class="task-pill task-pill-more"
+                                  @onclick:stopPropagation="true"
+                                  @onclick="() => OpenDayPanel(cell.Date, tasks)">
+                                +@(tasks.Count - 3) mais
+                            </span>
                         }
                     </div>
                 </div>
             }
         </div>
-
     </div>
 
     <!-- Legenda -->
     <div class="d-flex gap-3 mt-3 flex-wrap">
         <small class="text-muted d-flex align-items-center gap-1">
-            <span class="task-pill task-pill-overdue d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
-            Atrasada
+            <span style="width:10px;height:10px;border-radius:50%;background:#dc3545;display:inline-block;"></span> Atrasada
         </small>
         <small class="text-muted d-flex align-items-center gap-1">
-            <span class="task-pill task-pill-urgent d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
-            Urgente (P≤5)
+            <span style="width:10px;height:10px;border-radius:50%;background:#fd7e14;display:inline-block;"></span> Urgente (P≤5)
         </small>
         <small class="text-muted d-flex align-items-center gap-1">
-            <span class="task-pill task-pill-completed d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
-            Concluída
+            <span style="width:10px;height:10px;border-radius:50%;background:#198754;display:inline-block;"></span> Concluída
         </small>
         <small class="text-muted d-flex align-items-center gap-1">
-            <span class="task-pill task-pill-normal d-inline-block" style="width:12px;height:12px;border-radius:3px;"></span>
-            Normal
+            <span style="width:10px;height:10px;border-radius:50%;background:#0d6efd;display:inline-block;"></span> Normal
+        </small>
+        <small class="text-muted d-flex align-items-center gap-1">
+            <span style="width:10px;height:10px;background:#f0e6ff;border:1px solid #dee2e6;display:inline-block;"></span> Fim de semana
         </small>
     </div>
 }
 
+<!-- MINI-PAINEL LATERAL (offcanvas) -->
+@if (panelOpen)
+{
+    <div class="offcanvas-backdrop" @onclick="ClosePanel"></div>
+    <div class="day-panel">
+        <div class="day-panel-header d-flex align-items-center justify-content-between mb-3">
+            <div>
+                <h6 class="mb-0 fw-bold">
+                    @panelDate.ToString("ddd, dd 'de' MMMM", new System.Globalization.CultureInfo("pt-BR"))
+                </h6>
+                <small class="text-muted">@panelTasks.Count tarefa(s)</small>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-primary" @onclick="() => NavigateToNewTask(panelDate)">
+                    <i class="bi bi-plus"></i> Nova
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePanel">✕</button>
+            </div>
+        </div>
+
+        @if (!panelTasks.Any())
+        {
+            <p class="text-muted small">Nenhuma tarefa neste dia.</p>
+        }
+        else
+        {
+            @foreach (var t in panelTasks)
+            {
+                var pillClass = GetTaskPillClass(t);
+                <div class="panel-task-item d-flex align-items-start gap-2 mb-2 p-2 rounded border"
+                     style="border-left: 4px solid @GetPillColor(pillClass) !important;">
+                    <div class="flex-grow-1">
+                        <a href="/task/@t.Id" class="text-decoration-none text-dark small fw-semibold">
+                            <span class="text-muted me-1">#@t.Id</span>@t.Title
+                        </a>
+                        <div class="d-flex gap-1 mt-1 flex-wrap">
+                            <span class="badge @GetPriorityBadge(t.Priority)" style="font-size:.6rem;">
+                                @GetPriorityEmoji(t.Priority) P@t.Priority
+                            </span>
+                            <span class="badge bg-light text-dark border" style="font-size:.6rem;">@t.Category</span>
+                            @if (!string.IsNullOrEmpty(t.Description))
+                            {
+                                <span class="text-muted" style="font-size:.65rem;">@t.Description[..Math.Min(40, t.Description.Length)]@(t.Description.Length > 40 ? "…" : "")</span>
+                            }
+                        </div>
+                    </div>
+                    @if (t.IsCompleted)
+                    {
+                        <span class="badge bg-success align-self-center">✅</span>
+                    }
+                </div>
+            }
+        }
+    </div>
+}
+
 <style>
+    /* ── GRID ── */
     .calendar-grid { border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; }
 
     .calendar-weekdays {
@@ -161,80 +316,84 @@ else
         border-bottom: 1px solid #dee2e6;
     }
     .calendar-weekday {
-        text-align: center;
-        padding: 8px 4px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: #6c757d;
-        text-transform: uppercase;
-        letter-spacing: .04em;
+        text-align: center; padding: 8px 4px;
+        font-size: 0.8rem; font-weight: 600;
+        color: #6c757d; text-transform: uppercase; letter-spacing: .04em;
     }
+    .weekend-header { color: #9c6bbd !important; }
 
-    .calendar-cells {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-    }
+    .calendar-cells { display: grid; grid-template-columns: repeat(7, 1fr); }
 
     .calendar-cell {
-        min-height: 100px;
-        border-right: 1px solid #dee2e6;
-        border-bottom: 1px solid #dee2e6;
-        padding: 6px;
-        vertical-align: top;
-        background: white;
-        cursor: pointer;
-        transition: background 0.1s;
+        min-height: 100px; border-right: 1px solid #dee2e6; border-bottom: 1px solid #dee2e6;
+        padding: 6px; background: white; cursor: pointer; transition: background 0.1s;
     }
-    .calendar-cell:hover { background: #f5f9ff !important; }
-    .calendar-cell.other-month:hover { background: #f0f0f0 !important; }
+    .calendar-cell:hover          { background: #f5f9ff !important; }
+    .calendar-cell:nth-child(7n)  { border-right: none; }
+    .calendar-cell.today          { background: #f0f7ff; }
+    .calendar-cell.other-month    { background: #fafafa; }
+    .calendar-cell.other-month .cell-date { color: #adb5bd; }
+    .calendar-cell.weekend        { background: #faf5ff; }
+    .calendar-cell.weekend:hover  { background: #f3eaff !important; }
+    .calendar-cell.today.weekend  { background: #eef0ff; }
 
     .cell-add-btn {
-        font-size: 1rem;
-        color: #adb5bd;
-        font-weight: 300;
-        line-height: 1;
-        opacity: 0;
-        transition: opacity 0.15s;
-        padding: 0 2px;
-        border-radius: 3px;
+        font-size: 1rem; color: #adb5bd; font-weight: 300;
+        opacity: 0; transition: opacity 0.15s; padding: 0 2px; border-radius: 3px;
     }
     .calendar-cell:hover .cell-add-btn { opacity: 1; color: #0d6efd; }
-    .calendar-cell:nth-child(7n) { border-right: none; }
-    .calendar-cell.today { background: #f0f7ff; }
-    .calendar-cell.other-month { background: #fafafa; }
-    .calendar-cell.other-month .cell-date { color: #adb5bd; }
 
-    .cell-date {
-        font-size: 0.85rem;
-        margin-bottom: 4px;
-        color: #495057;
-    }
-
+    .cell-date { font-size: 0.85rem; margin-bottom: 4px; color: #495057; }
     .cell-tasks { display: flex; flex-direction: column; gap: 2px; }
 
+    /* ── INDICADOR NO DIA ── */
+    .day-indicator {
+        display: inline-block; width: 7px; height: 7px;
+        border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* ── PILLS ── */
     .task-pill {
-        display: block;
-        font-size: 0.7rem;
-        padding: 1px 5px;
-        border-radius: 4px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        text-decoration: none;
-        color: white;
-        cursor: pointer;
+        display: block; font-size: 0.7rem; padding: 1px 5px; border-radius: 4px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        text-decoration: none; color: white; cursor: pointer;
     }
     .task-pill:hover { opacity: 0.85; color: white; }
-
-    .task-pill-overdue  { background: #dc3545; }
-    .task-pill-urgent   { background: #fd7e14; }
+    .task-pill-overdue   { background: #dc3545; }
+    .task-pill-urgent    { background: #fd7e14; }
     .task-pill-completed { background: #198754; }
-    .task-pill-normal   { background: #0d6efd; }
-    .task-pill-more     { background: #6c757d; cursor: default; }
+    .task-pill-normal    { background: #0d6efd; }
+    .task-pill-more      { background: #6c757d; cursor: default; }
+
+    /* ── AGENDA ── */
+    .agenda-day { }
+    .agenda-day-header { padding-bottom: 4px; border-bottom: 1px solid #dee2e6; }
+    .agenda-today .agenda-day-header { border-bottom-color: #0d6efd; }
+    .agenda-weekend .agenda-day-header { background: #faf5ff; border-radius: 4px; padding: 4px 8px; }
+    .agenda-task { background: white; }
+    .agenda-task:hover { background: #f8f9fa; }
+
+    /* ── MINI-PAINEL ── */
+    .offcanvas-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+        z-index: 1040;
+    }
+    .day-panel {
+        position: fixed; top: 0; right: 0; bottom: 0; width: 340px;
+        background: white; box-shadow: -4px 0 16px rgba(0,0,0,0.12);
+        z-index: 1050; padding: 24px 20px; overflow-y: auto;
+        animation: slideIn 0.2s ease;
+    }
+    @@keyframes slideIn {
+        from { transform: translateX(100%); }
+        to   { transform: translateX(0); }
+    }
+    .day-panel-header { border-bottom: 1px solid #dee2e6; padding-bottom: 12px; }
 
     @@media (max-width: 768px) {
         .calendar-cell { min-height: 60px; }
         .task-pill { font-size: 0.6rem; }
+        .day-panel { width: 100%; }
     }
 </style>
 
@@ -244,14 +403,30 @@ else
     private int? orgId;
     private string? orgName;
 
-    private string viewMode = "month";   // "month" | "week"
-    private string dateType = "due";     // "due" | "created"
+    private string viewMode = "month";
+    private string dateType = "due";
     private DateTime currentDate = DateTime.Today;
 
     private List<TaskItem> allTasks = new();
+    private List<TaskItem> filteredTasks = new();
+    private List<string> availableCategories = new();
+
+    // Filtros
+    private string filterCategory = "";
+    private string filterStatus = "";
+    private bool filterAssignedToMe = false;
 
     private record CalendarCell(DateTime Date, List<TaskItem> Tasks);
     private List<CalendarCell> calendarCells = new();
+
+    // Agenda
+    private record AgendaDay(DateTime Date, List<TaskItem> Tasks);
+    private List<AgendaDay> agendaDays = new();
+
+    // Painel lateral
+    private bool panelOpen = false;
+    private DateTime panelDate;
+    private List<TaskItem> panelTasks = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -259,7 +434,6 @@ else
         currentUserId = auth.User.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-        // Read ?orgId= from URL
         var uri = Nav.ToAbsoluteUri(Nav.Uri);
         var qs = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
         if (qs.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
@@ -270,13 +444,51 @@ else
         }
 
         allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
+
+        availableCategories = allTasks
+            .Select(t => t.Category)
+            .Where(c => !string.IsNullOrEmpty(c))
+            .Distinct().OrderBy(c => c).ToList();
+
         BuildCalendar();
         isLoading = false;
     }
 
+    private void ApplyFilters()
+    {
+        var result = allTasks.AsEnumerable();
+
+        if (!string.IsNullOrEmpty(filterCategory))
+            result = result.Where(t => t.Category == filterCategory);
+
+        if (filterStatus == "pending")
+            result = result.Where(t => !t.IsCompleted);
+        else if (filterStatus == "completed")
+            result = result.Where(t => t.IsCompleted);
+        else if (filterStatus == "overdue")
+            result = result.Where(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate.Value < DateTime.Now);
+
+        if (filterAssignedToMe)
+            result = result.Where(t => t.AssignedToUserIds?.Contains(currentUserId ?? "") == true);
+
+        filteredTasks = result.ToList();
+    }
+
+    private void ClearFilters()
+    {
+        filterCategory = "";
+        filterStatus = "";
+        filterAssignedToMe = false;
+        BuildCalendar();
+    }
+
     private void BuildCalendar()
     {
-        calendarCells = viewMode == "month" ? BuildMonthCells() : BuildWeekCells();
+        ApplyFilters();
+        if (viewMode == "agenda")
+            BuildAgenda();
+        else
+            calendarCells = viewMode == "month" ? BuildMonthCells() : BuildWeekCells();
     }
 
     private List<CalendarCell> BuildMonthCells()
@@ -284,7 +496,6 @@ else
         var cells = new List<CalendarCell>();
         var firstDay = new DateTime(currentDate.Year, currentDate.Month, 1);
         var startDate = firstDay.AddDays(-(int)firstDay.DayOfWeek);
-        // always render 6 weeks for consistent grid height
         for (int i = 0; i < 42; i++)
         {
             var date = startDate.AddDays(i);
@@ -305,9 +516,17 @@ else
         return cells;
     }
 
+    private void BuildAgenda()
+    {
+        agendaDays = Enumerable.Range(0, 30)
+            .Select(i => DateTime.Today.AddDays(i))
+            .Select(date => new AgendaDay(date, GetTasksForDate(date)))
+            .ToList();
+    }
+
     private List<TaskItem> GetTasksForDate(DateTime date)
     {
-        return allTasks.Where(t =>
+        return filteredTasks.Where(t =>
         {
             var taskDate = dateType == "due"
                 ? t.DueDate?.ToLocalTime().Date
@@ -318,19 +537,37 @@ else
         .ToList();
     }
 
+    // Painel lateral
+    private void OpenDayPanel(DateTime date, List<TaskItem> tasks)
+    {
+        panelDate  = date;
+        panelTasks = tasks;
+        panelOpen  = true;
+    }
+
+    private void ClosePanel() => panelOpen = false;
+
     private void Prev()
     {
-        currentDate = viewMode == "month"
-            ? currentDate.AddMonths(-1)
-            : currentDate.AddDays(-7);
+        currentDate = viewMode switch
+        {
+            "month"  => currentDate.AddMonths(-1),
+            "week"   => currentDate.AddDays(-7),
+            "agenda" => currentDate.AddDays(-30),
+            _        => currentDate
+        };
         BuildCalendar();
     }
 
     private void Next()
     {
-        currentDate = viewMode == "month"
-            ? currentDate.AddMonths(1)
-            : currentDate.AddDays(7);
+        currentDate = viewMode switch
+        {
+            "month"  => currentDate.AddMonths(1),
+            "week"   => currentDate.AddDays(7),
+            "agenda" => currentDate.AddDays(30),
+            _        => currentDate
+        };
         BuildCalendar();
     }
 
@@ -348,21 +585,83 @@ else
 
     private string GetPeriodLabel()
     {
-        if (viewMode == "month")
-            return currentDate.ToString("MMMM yyyy",
-                new System.Globalization.CultureInfo("pt-BR"));
-
-        var startOfWeek = currentDate.AddDays(-(int)currentDate.DayOfWeek);
-        var endOfWeek = startOfWeek.AddDays(6);
-        return $"{startOfWeek:dd/MM} – {endOfWeek:dd/MM/yyyy}";
+        var ptBR = new System.Globalization.CultureInfo("pt-BR");
+        return viewMode switch
+        {
+            "month"  => currentDate.ToString("MMMM yyyy", ptBR),
+            "week"   => $"{currentDate.AddDays(-(int)currentDate.DayOfWeek):dd/MM} – {currentDate.AddDays(6 - (int)currentDate.DayOfWeek):dd/MM/yyyy}",
+            "agenda" => $"Agenda: {DateTime.Today:dd/MM} – {DateTime.Today.AddDays(29):dd/MM/yyyy}",
+            _        => ""
+        };
     }
 
     private string GetTaskPillClass(TaskItem t)
     {
         if (t.IsCompleted) return "task-pill-completed";
-        if (t.DueDate.HasValue && t.DueDate.Value < DateTime.Now && !t.IsCompleted) return "task-pill-overdue";
+        if (t.DueDate.HasValue && t.DueDate.Value < DateTime.Now) return "task-pill-overdue";
         if (t.Priority <= 5) return "task-pill-urgent";
         return "task-pill-normal";
+    }
+
+    private string GetPillColor(string pillClass) => pillClass switch
+    {
+        "task-pill-overdue"   => "#dc3545",
+        "task-pill-urgent"    => "#fd7e14",
+        "task-pill-completed" => "#198754",
+        _                     => "#0d6efd"
+    };
+
+    // Indicador colorido no número do dia — cor da task mais crítica
+    private string? GetDayIndicator(List<TaskItem> tasks)
+    {
+        if (!tasks.Any()) return null;
+        if (tasks.Any(t => !t.IsCompleted && t.DueDate.HasValue && t.DueDate.Value < DateTime.Now))
+            return "#dc3545";
+        if (tasks.Any(t => !t.IsCompleted && t.Priority <= 5))
+            return "#fd7e14";
+        if (tasks.All(t => t.IsCompleted))
+            return "#198754";
+        return "#0d6efd";
+    }
+
+    // Tooltip rico para as pills
+    private string GetTooltipText(TaskItem t)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(t.Title);
+        sb.Append($" | P{t.Priority} | {t.Category}");
+        if (t.DueDate.HasValue)
+            sb.Append($" | Vence: {t.DueDate.Value.ToLocalTime():dd/MM/yyyy}");
+        if (t.IsCompleted)
+            sb.Append(" | ✅ Concluída");
+        else if (t.DueDate.HasValue && t.DueDate.Value < DateTime.Now)
+            sb.Append(" | ⚠️ Atrasada");
+        if (!string.IsNullOrEmpty(t.Description))
+            sb.Append($" | {t.Description[..Math.Min(50, t.Description.Length)]}…");
+        return sb.ToString();
+    }
+
+    private string GetPriorityBadge(int p) => p switch
+    {
+        <= 2  => "bg-danger",
+        <= 5  => "bg-warning text-dark",
+        <= 10 => "bg-info text-dark",
+        <= 20 => "bg-success",
+        _     => "bg-secondary"
+    };
+
+    private string GetPriorityEmoji(int p) => p switch
+    {
+        <= 2  => "🔴",
+        <= 5  => "🟠",
+        <= 10 => "🟡",
+        <= 20 => "🟢",
+        _     => "⚪"
+    };
+
+    private void NavigateToTask(int taskId)
+    {
+        Nav.NavigateTo("/task/" + taskId);
     }
 
     private void NavigateToNewTask(DateTime date)
@@ -372,5 +671,6 @@ else
             ? $"/add-task?orgId={orgId}&dueDate={dateStr}"
             : $"/add-task?dueDate={dateStr}";
         Nav.NavigateTo(url);
+        panelOpen = false;
     }
 }
