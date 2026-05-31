@@ -19,6 +19,10 @@
         <a href="/calendar@(orgId.HasValue ? $"?orgId={orgId}" : "")" class="btn btn-outline-secondary">
             <i class="bi bi-calendar3"></i> Calendário
         </a>
+        <button class="btn @(treeView ? "btn-secondary" : "btn-outline-secondary")"
+                @onclick="() => { treeView = !treeView; BuildTree(); }">
+            <i class="bi bi-diagram-3"></i> @(treeView ? "Lista" : "Árvore")
+        </button>
         <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success">
             <i class="bi bi-plus-circle"></i> Nova Tarefa
         </a>
@@ -148,6 +152,16 @@ else if (!filteredTasks.Any())
         else
         {
             <a href="/add-task" class="btn btn-primary">Criar Primeira Tarefa</a>
+        }
+    </div>
+}
+else if (treeView)
+{
+    <!-- ÁRVORE DE DEPENDÊNCIAS -->
+    <div class="tree-view mb-4">
+        @foreach (var node in treeNodes)
+        {
+            @RenderTreeNode(node, 0)
         }
     </div>
 }
@@ -353,6 +367,43 @@ else
     </div>
 }
 
+<style>
+    .tree-view { }
+
+    .tree-node {
+        border-left: 2px solid #dee2e6;
+        padding-left: 8px;
+        margin-bottom: 4px;
+    }
+    .tree-node:last-child { margin-bottom: 0; }
+    .tree-node-done { opacity: 0.6; }
+
+    .tree-node-header {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 6px 10px;
+        transition: background 0.1s;
+    }
+    .tree-node-header:hover { background: #f8f9fa; }
+
+    .tree-toggle {
+        color: #6c757d;
+        text-decoration: none;
+        line-height: 1;
+        width: 18px;
+        flex-shrink: 0;
+    }
+    .tree-toggle:hover { color: #0d6efd; }
+
+    .tree-leaf-spacer { display: inline-block; width: 18px; flex-shrink: 0; }
+
+    .tree-children {
+        margin-top: 4px;
+        padding-left: 0;
+    }
+</style>
+
 @code {
     private List<TaskItem> allTasks = new();
     private List<TaskItem> filteredTasks = new();
@@ -375,6 +426,11 @@ else
     private bool filterBlocked = false;
     private int? lastOrgId;
     private Dictionary<int, bool> taskCanDelete = new();
+    // Visualização em árvore
+    private bool treeView = false;
+    private record TreeNode(TaskItem Task, List<TreeNode> Children);
+    private List<TreeNode> treeNodes = new();
+    private HashSet<int> collapsedNodes = new();
     // Paginação
     private int currentPage = 1;
     private int pageSize = 10;
@@ -485,6 +541,127 @@ else
         }
     }
 
+    private void BuildTree()
+    {
+        var filteredIds = filteredTasks.Select(t => t.Id).ToHashSet();
+
+        // IDs that appear as a dependency of someone — they are children, not roots
+        var appearsAsChild = filteredTasks
+            .Where(t => t.DependencyOnTaskIds != null)
+            .SelectMany(t => t.DependencyOnTaskIds!)
+            .Where(id => filteredIds.Contains(id))
+            .ToHashSet();
+
+        // Roots = tasks NOT appearing as a child of anyone in the filtered list
+        // This includes: tasks with children, AND standalone tasks with no dependencies
+        var roots = filteredTasks
+            .Where(t => !appearsAsChild.Contains(t.Id))
+            .OrderBy(t => t.Priority)
+            .ToList();
+
+        treeNodes = roots.Select(r => BuildNode(r)).ToList();
+    }
+
+    private TreeNode BuildNode(TaskItem task)
+    {
+        var filteredIds = filteredTasks.Select(t => t.Id).ToHashSet();
+
+        // Children = tasks that THIS task depends on (must be done before this task)
+        // A task can appear as child in multiple trees
+        var children = (task.DependencyOnTaskIds ?? new List<int>())
+            .Where(id => filteredIds.Contains(id))
+            .Select(id => filteredTasks.First(t => t.Id == id))
+            .OrderBy(t => t.Priority)
+            .Select(c => BuildNode(c))
+            .ToList();
+
+        return new TreeNode(task, children);
+    }
+
+    private RenderFragment RenderTreeNode(TreeNode node, int depth) => __builder =>
+    {
+        var task = node.Task;
+        var hasChildren = node.Children.Any();
+        var isCollapsed = collapsedNodes.Contains(task.Id);
+        var indent = depth * 28;
+
+        var _canComplete = !taskCanComplete.TryGetValue(task.Id, out var _cp) || _cp;
+        var _blocked = pendingDependencies.Contains(task.Id);
+
+        <div class="tree-node @(task.IsCompleted ? "tree-node-done" : "")"
+             style="margin-left: @(indent)px;">
+            <div class="tree-node-header d-flex align-items-center gap-2">
+                @if (hasChildren)
+                {
+                    <button class="btn btn-link p-0 tree-toggle"
+                            @onclick="() => ToggleNode(task.Id)"
+                            @onclick:stopPropagation="true">
+                        <i class="bi @(isCollapsed ? "bi-chevron-right" : "bi-chevron-down") small"></i>
+                    </button>
+                }
+                else
+                {
+                    <span class="tree-leaf-spacer"></span>
+                }
+
+                <input type="checkbox" class="form-check-input mt-0 flex-shrink-0"
+                       checked="@task.IsCompleted"
+                       disabled="@(_blocked || !_canComplete)"
+                       @onchange="() => ToggleComplete(task.Id)"
+                       style="width:1.1rem;height:1.1rem;cursor:@((_blocked || !_canComplete) ? "not-allowed" : "pointer");" />
+
+                <a href="/task/@task.Id"
+                   class="flex-grow-1 text-decoration-none @(task.IsCompleted ? "text-muted text-decoration-line-through" : "text-dark") fw-semibold small">
+                    <span class="text-muted me-1">#@task.Id</span>@task.Title
+                </a>
+
+                <span class="badge @GetPriorityClass(task.Priority) ms-1">
+                    @GetPriorityEmoji(task.Priority) @task.Priority
+                </span>
+
+                @if (task.DueDate.HasValue)
+                {
+                    var overdue = task.DueDate.Value < DateTime.Now && !task.IsCompleted;
+                    <span class="badge @(overdue ? "bg-danger" : "bg-light text-dark border") small">
+                        @task.DueDate.Value.ToLocalTime().ToString("dd/MM")
+                    </span>
+                }
+
+                <span class="badge bg-light text-dark border small">@task.Category</span>
+
+                @if (!taskCanEdit.TryGetValue(task.Id, out var _canEdit) || _canEdit)
+                {
+                    <a href="/edit-task/@task.Id" class="btn btn-outline-primary btn-sm py-0 px-1">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                }
+                @if (!taskCanDelete.TryGetValue(task.Id, out var _canDelete) || _canDelete)
+                {
+                    <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                            @onclick="() => ShowDeleteConfirm(task.Id)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                }
+            </div>
+
+            @if (hasChildren && !isCollapsed)
+            {
+                <div class="tree-children">
+                    @foreach (var child in node.Children)
+                    {
+                        @RenderTreeNode(child, depth + 1)
+                    }
+                </div>
+            }
+        </div>
+    };
+
+    private void ToggleNode(int taskId)
+    {
+        if (!collapsedNodes.Add(taskId))
+            collapsedNodes.Remove(taskId);
+    }
+
     private void ApplyFilters()
     {
         var result = allTasks.AsEnumerable();
@@ -536,6 +713,7 @@ t.DueDate.Value.ToLocalTime().Date <= today.AddDays(7)),
 
         filteredTasks = result.ToList();
         currentPage = 1; // reset to first page on filter change
+        BuildTree();
     }
 
     private void ClearFilters()
