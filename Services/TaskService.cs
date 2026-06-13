@@ -98,6 +98,10 @@ public class TaskService
         existing.IsRecurrent = task.IsRecurrent;
         existing.RecurrencePattern = task.RecurrencePattern;
         existing.IsCompleted = task.IsCompleted;
+        existing.KanbanStatus = task.KanbanStatus;
+        // Keep KanbanStatus in sync with IsCompleted
+        if (task.IsCompleted && existing.KanbanStatus != KanbanStatus.Done)
+            existing.KanbanStatus = KanbanStatus.Done;
         existing.Tags = task.Tags;
         existing.DependencyOnTaskIds = task.DependencyOnTaskIds;
         existing.AssignedToUserIds = task.AssignedToUserIds;
@@ -343,6 +347,63 @@ public class TaskService
         };
 
         return await query.ToListAsync();
+    }
+
+    public async Task UpdateKanbanStatusAsync(int taskId, KanbanStatus newStatus, string requestingUserId, string? recurrencePattern = null)
+    {
+        var task = await _context.Tasks.FindAsync(taskId);
+        if (task == null) return;
+
+        // Permission check — same as complete for Done, edit for others
+        if (task.OrganizationId.HasValue)
+        {
+            var org  = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
+            var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, requestingUserId);
+            if (org == null || !role.HasValue) return;
+
+            var isAssignee = task.AssignedToUserIds?.Contains(requestingUserId) == true;
+            var isAuthor   = task.AuthorUserId == requestingUserId;
+
+            if (newStatus == KanbanStatus.Done)
+            {
+                if (!isAssignee && !isAuthor && !OrgService.CanCompleteTask(org, role.Value)) return;
+            }
+            else
+            {
+                if (!isAssignee && !isAuthor && !OrgService.CanEditTask(org, role.Value)) return;
+            }
+        }
+        else if (task.AuthorUserId != requestingUserId &&
+                 task.AssignedToUserIds?.Contains(requestingUserId) != true)
+        {
+            return;
+        }
+
+        task.KanbanStatus = newStatus;
+
+        // Sync IsCompleted with Done status
+        task.IsCompleted = newStatus == KanbanStatus.Done;
+
+        // Sync IsRecurrent if moved to Recurrent column
+        if (newStatus == KanbanStatus.Recurrent)
+            task.IsRecurrent = true;
+
+        await _context.SaveChangesAsync();
+
+        // Notify assignees when task is marked Done
+        if (newStatus == KanbanStatus.Done && task.AssignedToUserIds != null)
+        {
+            var others = task.AssignedToUserIds.Where(uid => uid != requestingUserId).ToList();
+            foreach (var uid in others)
+            {
+                await _notificationService.CreateAsync(
+                    userId: uid,
+                    message: $"A tarefa '{task.Title}' foi movida para Concluída",
+                    type: NotificationType.TaskCompleted,
+                    link: $"/task/{task.Id}"
+                );
+            }
+        }
     }
 
     public async Task<int> GetPendingTaskCountForUserInOrgAsync(string userId, int orgId)

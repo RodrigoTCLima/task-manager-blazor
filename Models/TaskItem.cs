@@ -6,6 +6,14 @@ using System.Threading.Tasks;
 
 namespace TaskManager.Models;
 
+public enum KanbanStatus
+{
+    Todo        = 0, // A fazer (padrão — valor 0 no banco)
+    InProgress  = 1, // Em andamento
+    Done        = 2, // Concluída
+    Recurrent   = 3  // Tarefas recorrentes
+}
+
 public class TaskItem
 {
     public int Id { get; set; }
@@ -19,27 +27,29 @@ public class TaskItem
     public DateTime? DueDate { get; set; }
 
     [Range(1, int.MaxValue, ErrorMessage = "O valor deve ser maior ou igual a 1.")]
-    public int Priority { get; set; } = 1; // Quanto menor o número, maior a prioridade
+    public int Priority { get; set; } = 1;
     public List<string> Tags { get; set; } = new List<string>();
     public string Category { get; set; } = "Geral";
     public bool HasAlarm { get; set; } = false;
     public DateTime? AlarmTime { get; set; }
 
     public bool IsRecurrent { get; set; } = false;
-    public string? RecurrencePattern { get; set; } // Ex: "Diário", "Semanal", "Mensal"
+    public string? RecurrencePattern { get; set; }
 
-    public List<int>? DependencyOnTaskIds { get; set; } = new List<int>(); // IDs de tarefas das quais esta tarefa depende
-    public List<TaskItem>? DependsOnTasks { get; set; } = new List<TaskItem>(); // Tarefas das quais esta tarefa depende
+    /// <summary>Coluna do Kanban. Done sincroniza com IsCompleted.</summary>
+    public KanbanStatus KanbanStatus { get; set; } = KanbanStatus.Todo;
 
-    public string AuthorUserId { get; set; } = string.Empty; // ID do usuário que criou a tarefa
-    public List<string> AssignedToUserIds { get; set; } = new(); // Múltiplos responsáveis
-    public int? OrganizationId { get; set; } // Nulo = tarefa pessoal
+    public List<int>? DependencyOnTaskIds { get; set; } = new List<int>();
+    public List<TaskItem>? DependsOnTasks { get; set; } = new List<TaskItem>();
+
+    public string AuthorUserId { get; set; } = string.Empty;
+    public List<string> AssignedToUserIds { get; set; } = new();
+    public int? OrganizationId { get; set; }
 
     [Range(0, 20, ErrorMessage = "O valor deve estar entre 0 e 20.")]
-    public int NeedsReview { get; set; } = 0; // Quantidade de vezes que a tarefa precisa ser revisada antes de ser considerada completa
+    public int NeedsReview { get; set; } = 0;
 
-    public List<string>? ReviewByUserId { get; set; } // IDs dos usuários responsáveis por revisar a tarefa
-    public List<string>? ReviewedByUserId { get; set; } // IDs dos usuários que já revisaram a tarefa
-    public List<Comment>? Comments { get; set; } // Comentários relacionados à tarefa
-
+    public List<string>? ReviewByUserId { get; set; }
+    public List<string>? ReviewedByUserId { get; set; }
+    public List<Comment>? Comments { get; set; }
 }

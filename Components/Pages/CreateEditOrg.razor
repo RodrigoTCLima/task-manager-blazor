@@ -66,6 +66,24 @@
             </InputSelect>
         </div>
 
+        <div class="mb-3">
+            <label class="form-label fw-bold">Quem pode ver o Kanban</label>
+            <InputSelect @bind-Value="model.KanbanViewPolicy" class="form-select">
+                <option value="@KanbanViewPolicy.AllMembers">Todos os membros</option>
+                <option value="@KanbanViewPolicy.AdminsAndOwner">Admins e Owner</option>
+                <option value="@KanbanViewPolicy.OwnerOnly">Somente Owner</option>
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-bold">Quem pode ver tarefas de outros no Kanban</label>
+            <InputSelect @bind-Value="model.KanbanViewOthersPolicy" class="form-select">
+                <option value="@KanbanViewOthersPolicy.AllMembers">Todos os membros</option>
+                <option value="@KanbanViewOthersPolicy.AdminsAndOwner">Admins e Owner</option>
+                <option value="@KanbanViewOthersPolicy.OwnerOnly">Somente Owner</option>
+            </InputSelect>
+        </div>
+
         <div class="mb-4">
             <div class="form-check">
                 <InputCheckbox @bind-Value="model.AllowJoinRequests" class="form-check-input" id="allowJoin" />
@@ -123,8 +141,10 @@
                 AllowJoinRequests = editingOrg.AllowJoinRequests,
                 TaskCreationPolicy = editingOrg.TaskCreationPolicy,
                 TaskEditPolicy = editingOrg.TaskEditPolicy,
+                TaskCompletePolicy = editingOrg.TaskCompletePolicy,
                 TaskDeletePolicy = editingOrg.TaskDeletePolicy,
-                TaskCompletePolicy = editingOrg.TaskCompletePolicy
+                KanbanViewPolicy = editingOrg.KanbanViewPolicy,
+                KanbanViewOthersPolicy = editingOrg.KanbanViewOthersPolicy
             };
         }
     }

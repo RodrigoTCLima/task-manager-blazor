@@ -80,6 +80,8 @@ public class OrganizationService
         existing.TaskEditPolicy = org.TaskEditPolicy;
         existing.TaskDeletePolicy = org.TaskDeletePolicy;
         existing.TaskCompletePolicy = org.TaskCompletePolicy;
+        existing.KanbanViewPolicy = org.KanbanViewPolicy;
+        existing.KanbanViewOthersPolicy = org.KanbanViewOthersPolicy;
 
         await _context.SaveChangesAsync();
     }
@@ -332,6 +334,28 @@ public class OrganizationService
             TaskCompletePolicy.OwnerOnly => role == MemberRole.Owner,
             TaskCompletePolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
             TaskCompletePolicy.AllMembers => true,
+            _ => false
+        };
+    }
+
+    public bool CanViewKanban(Organization org, MemberRole role)
+    {
+        return org.KanbanViewPolicy switch
+        {
+            KanbanViewPolicy.OwnerOnly      => role == MemberRole.Owner,
+            KanbanViewPolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
+            KanbanViewPolicy.AllMembers     => true,
+            _ => false
+        };
+    }
+
+    public bool CanViewOthersKanban(Organization org, MemberRole role)
+    {
+        return org.KanbanViewOthersPolicy switch
+        {
+            KanbanViewOthersPolicy.OwnerOnly      => role == MemberRole.Owner,
+            KanbanViewOthersPolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
+            KanbanViewOthersPolicy.AllMembers     => true,
             _ => false
         };
     }

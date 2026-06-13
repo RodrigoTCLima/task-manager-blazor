@@ -4,33 +4,15 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TaskManager.Models;
 
-public enum TaskCreationPolicy
-{
-    OwnerOnly,
-    AdminsAndOwner,
-    AllMembers
-}
+public enum TaskCreationPolicy  { OwnerOnly, AdminsAndOwner, AllMembers }
+public enum TaskEditPolicy      { OwnerOnly, AdminsAndOwner, AllMembers }
+public enum TaskDeletePolicy    { OwnerOnly, AdminsAndOwner, AllMembers }
+public enum TaskCompletePolicy  { OwnerOnly, AdminsAndOwner, AllMembers }
 
-public enum TaskEditPolicy
-{
-    OwnerOnly,
-    AdminsAndOwner,
-    AllMembers
-}
-
-public enum TaskDeletePolicy
-{
-    OwnerOnly,
-    AdminsAndOwner,
-    AllMembers
-}
-
-public enum TaskCompletePolicy
-{
-    OwnerOnly,
-    AdminsAndOwner,
-    AllMembers
-}
+// Quem pode VER o kanban da org
+public enum KanbanViewPolicy    { OwnerOnly, AdminsAndOwner, AllMembers }
+// Quem pode ver tasks de OUTROS membros no kanban
+public enum KanbanViewOthersPolicy { OwnerOnly, AdminsAndOwner, AllMembers }
 
 public class Organization
 {
@@ -49,10 +31,14 @@ public class Organization
 
     public bool AllowJoinRequests { get; set; } = false;
 
-    public TaskCreationPolicy TaskCreationPolicy { get; set; } = TaskCreationPolicy.OwnerOnly;
-    public TaskEditPolicy TaskEditPolicy { get; set; } = TaskEditPolicy.AllMembers;
-    public TaskDeletePolicy TaskDeletePolicy { get; set; } = TaskDeletePolicy.AdminsAndOwner;
-    public TaskCompletePolicy TaskCompletePolicy { get; set; } = TaskCompletePolicy.AllMembers;
+    public TaskCreationPolicy  TaskCreationPolicy  { get; set; } = TaskCreationPolicy.OwnerOnly;
+    public TaskEditPolicy      TaskEditPolicy      { get; set; } = TaskEditPolicy.AllMembers;
+    public TaskDeletePolicy    TaskDeletePolicy    { get; set; } = TaskDeletePolicy.AdminsAndOwner;
+    public TaskCompletePolicy  TaskCompletePolicy  { get; set; } = TaskCompletePolicy.AllMembers;
+
+    // Kanban
+    public KanbanViewPolicy        KanbanViewPolicy        { get; set; } = KanbanViewPolicy.AllMembers;
+    public KanbanViewOthersPolicy  KanbanViewOthersPolicy  { get; set; } = KanbanViewOthersPolicy.AdminsAndOwner;
 
     public List<OrganizationMember> Members { get; set; } = new();
     public List<OrganizationInvite> Invites { get; set; } = new();
