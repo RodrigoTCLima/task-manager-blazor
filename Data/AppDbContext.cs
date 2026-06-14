@@ -15,10 +15,11 @@ public class AppDbContext : IdentityDbContext
     public DbSet<OrganizationInvite> OrganizationInvites { get; set; }
     public DbSet<Notification> Notifications { get; set; }
 
-
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        var isPostgres = Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
 
         // Comment -> TaskItem
         builder.Entity<Comment>()
@@ -27,22 +28,24 @@ public class AppDbContext : IdentityDbContext
             .HasForeignKey(c => c.TaskItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Garante que colunas JSON nunca sejam NULL no banco
+        // Default values for JSON columns — syntax differs between SQLite and PostgreSQL
+        var emptyJson = isPostgres ? "'[]'::text" : "'[]'";
+
         builder.Entity<TaskItem>()
             .Property(t => t.Tags)
-            .HasDefaultValueSql("'[]'");
+            .HasDefaultValueSql(emptyJson);
 
         builder.Entity<TaskItem>()
             .Property(t => t.DependencyOnTaskIds)
-            .HasDefaultValueSql("'[]'");
+            .HasDefaultValueSql(emptyJson);
 
         builder.Entity<TaskItem>()
             .Property(t => t.ReviewByUserId)
-            .HasDefaultValueSql("'[]'");
+            .HasDefaultValueSql(emptyJson);
 
         builder.Entity<TaskItem>()
             .Property(t => t.ReviewedByUserId)
-            .HasDefaultValueSql("'[]'");
+            .HasDefaultValueSql(emptyJson);
 
         // OrganizationMember -> Organization
         builder.Entity<OrganizationMember>()
@@ -58,19 +61,43 @@ public class AppDbContext : IdentityDbContext
             .HasForeignKey(i => i.OrganizationId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Serializar listas como JSON no SQLite
+        // JSON serialization for List<string> and List<int> fields
+        // Same approach works for both SQLite and PostgreSQL (stored as text)
+        var jsonOptions = (System.Text.Json.JsonSerializerOptions?)null;
+
         builder.Entity<TaskItem>()
             .Property(t => t.Tags)
             .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
+                v => System.Text.Json.JsonSerializer.Serialize(v, jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
             );
 
         builder.Entity<TaskItem>()
             .Property(t => t.AssignedToUserIds)
             .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<string>()
+                v => System.Text.Json.JsonSerializer.Serialize(v, jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
+            );
+
+        builder.Entity<TaskItem>()
+            .Property(t => t.DependencyOnTaskIds)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<int>(), jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v, jsonOptions) ?? new List<int>()
+            );
+
+        builder.Entity<TaskItem>()
+            .Property(t => t.ReviewByUserId)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<string>(), jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
+            );
+
+        builder.Entity<TaskItem>()
+            .Property(t => t.ReviewedByUserId)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<string>(), jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
             );
     }
 }
