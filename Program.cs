@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using TaskManager.Components;
 using TaskManager.Data;
 using TaskManager.Services;
@@ -9,21 +10,25 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// ── DATABASE ─────────────────────────────────────────────────────────────────
-// Development: SQLite  |  Production: PostgreSQL via Neon (DATABASE_URL)
+// ── DATABASE ──────────────────────────────────────────────────────────────────
 var isDev = builder.Environment.IsDevelopment();
 
 if (isDev)
 {
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseSqlite("Data Source=tasks.db"));
+        options
+            .UseSqlite("Data Source=tasks.db")
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 }
 else
 {
     var dbUrl = Environment.GetEnvironmentVariable("DATABASE_URL")
         ?? throw new InvalidOperationException("DATABASE_URL is not set.");
+
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseNpgsql(dbUrl));
+        options
+            .UseNpgsql(dbUrl)
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 }
 
 // ── IDENTITY ──────────────────────────────────────────────────────────────────
@@ -33,7 +38,6 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
     options.Password.RequireDigit = true;
     options.Password.RequiredLength = 8;
     options.Password.RequireNonAlphanumeric = false;
-    // Lockout after 5 failed attempts for 5 minutes
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.AllowedForNewUsers = true;
@@ -57,7 +61,6 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
     app.UseHsts();
 
-    // Basic security headers
     app.Use(async (context, next) =>
     {
         context.Response.Headers.Append("X-Frame-Options", "DENY");

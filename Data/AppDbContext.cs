@@ -1,5 +1,6 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using TaskManager.Models;
 
 namespace TaskManager.Data;
@@ -20,84 +21,96 @@ public class AppDbContext : IdentityDbContext
         base.OnModelCreating(builder);
 
         var isPostgres = Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL";
+        var emptyJson  = isPostgres ? "'[]'::text" : "'[]'";
+        var jsonOptions = (System.Text.Json.JsonSerializerOptions?)null;
 
-        // Comment -> TaskItem
+        // ── Value comparers for List<string> and List<int> ──────────────────
+        var stringListComparer = new ValueComparer<List<string>>(
+            (a, b) => a != null && b != null && a.SequenceEqual(b),
+            v => v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+            v => v.ToList()
+        );
+
+        var nullableStringListComparer = new ValueComparer<List<string>?>(
+            (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
+            v => v == null ? 0 : v.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+            v => v == null ? null : v.ToList()
+        );
+
+        var intListComparer = new ValueComparer<List<int>?>(
+            (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
+            v => v == null ? 0 : v.Aggregate(0, (h, i) => HashCode.Combine(h, i.GetHashCode())),
+            v => v == null ? null : v.ToList()
+        );
+
+        // ── Comment -> TaskItem ──────────────────────────────────────────────
         builder.Entity<Comment>()
             .HasOne<TaskItem>()
             .WithMany(t => t.Comments)
             .HasForeignKey(c => c.TaskItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Default values for JSON columns — syntax differs between SQLite and PostgreSQL
-        var emptyJson = isPostgres ? "'[]'::text" : "'[]'";
-
+        // ── Tags ─────────────────────────────────────────────────────────────
         builder.Entity<TaskItem>()
             .Property(t => t.Tags)
-            .HasDefaultValueSql(emptyJson);
+            .HasDefaultValueSql(emptyJson)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
+            )
+            .Metadata.SetValueComparer(stringListComparer);
 
+        // ── AssignedToUserIds ─────────────────────────────────────────────────
+        builder.Entity<TaskItem>()
+            .Property(t => t.AssignedToUserIds)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
+            )
+            .Metadata.SetValueComparer(stringListComparer);
+
+        // ── DependencyOnTaskIds ───────────────────────────────────────────────
         builder.Entity<TaskItem>()
             .Property(t => t.DependencyOnTaskIds)
-            .HasDefaultValueSql(emptyJson);
+            .HasDefaultValueSql(emptyJson)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<int>(), jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v, jsonOptions) ?? new List<int>()
+            )
+            .Metadata.SetValueComparer(intListComparer);
 
+        // ── ReviewByUserId ────────────────────────────────────────────────────
         builder.Entity<TaskItem>()
             .Property(t => t.ReviewByUserId)
-            .HasDefaultValueSql(emptyJson);
+            .HasDefaultValueSql(emptyJson)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<string>(), jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
+            )
+            .Metadata.SetValueComparer(nullableStringListComparer);
 
+        // ── ReviewedByUserId ──────────────────────────────────────────────────
         builder.Entity<TaskItem>()
             .Property(t => t.ReviewedByUserId)
-            .HasDefaultValueSql(emptyJson);
+            .HasDefaultValueSql(emptyJson)
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<string>(), jsonOptions),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
+            )
+            .Metadata.SetValueComparer(nullableStringListComparer);
 
-        // OrganizationMember -> Organization
+        // ── OrganizationMember -> Organization ────────────────────────────────
         builder.Entity<OrganizationMember>()
             .HasOne(m => m.Organization)
             .WithMany(o => o.Members)
             .HasForeignKey(m => m.OrganizationId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // OrganizationInvite -> Organization
+        // ── OrganizationInvite -> Organization ────────────────────────────────
         builder.Entity<OrganizationInvite>()
             .HasOne(i => i.Organization)
             .WithMany(o => o.Invites)
             .HasForeignKey(i => i.OrganizationId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        // JSON serialization for List<string> and List<int> fields
-        // Same approach works for both SQLite and PostgreSQL (stored as text)
-        var jsonOptions = (System.Text.Json.JsonSerializerOptions?)null;
-
-        builder.Entity<TaskItem>()
-            .Property(t => t.Tags)
-            .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v, jsonOptions),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
-            );
-
-        builder.Entity<TaskItem>()
-            .Property(t => t.AssignedToUserIds)
-            .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v, jsonOptions),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
-            );
-
-        builder.Entity<TaskItem>()
-            .Property(t => t.DependencyOnTaskIds)
-            .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<int>(), jsonOptions),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<int>>(v, jsonOptions) ?? new List<int>()
-            );
-
-        builder.Entity<TaskItem>()
-            .Property(t => t.ReviewByUserId)
-            .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<string>(), jsonOptions),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
-            );
-
-        builder.Entity<TaskItem>()
-            .Property(t => t.ReviewedByUserId)
-            .HasConversion(
-                v => System.Text.Json.JsonSerializer.Serialize(v ?? new List<string>(), jsonOptions),
-                v => System.Text.Json.JsonSerializer.Deserialize<List<string>>(v, jsonOptions) ?? new List<string>()
-            );
     }
 }
