@@ -10,6 +10,7 @@
 @inject OrganizationService OrgService
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
+@inject AppState AppState
 
 @rendermode InteractiveServer
 
@@ -277,10 +278,120 @@
             }
 
         </EditForm>
+<!-- Confirmation overlay -->
+@if (showConfirm)
+{
+    var depTasks = availableTasks
+        .Where(t => taskModel.DependencyOnTaskIds != null && taskModel.DependencyOnTaskIds.Contains(t.Id))
+        .ToList();
+    var orgLabel = allowedOrgs.FirstOrDefault(o => o.Id == taskModel.OrganizationId)?.Name ?? "Pessoal";
+
+    <div class="confirm-backdrop" @onclick="() => showConfirm = false"></div>
+    <div class="confirm-overlay">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-check2-circle text-primary fs-4"></i>
+            <h6 class="mb-0 fw-bold">Confirmar tarefa</h6>
+        </div>
+
+        <div class="confirm-field">
+            <span class="confirm-label">Título</span>
+            <span class="fw-semibold">@taskModel.Title</span>
+        </div>
+        <div class="confirm-field">
+            <span class="confirm-label">Prioridade</span>
+            <span class="badge @GetPriorityBadgeClass(taskModel.Priority)">
+                @GetPriorityEmoji(taskModel.Priority) @taskModel.Priority
+            </span>
+        </div>
+        <div class="confirm-field">
+            <span class="confirm-label">Vencimento</span>
+            <span>@(taskModel.DueDate.HasValue ? taskModel.DueDate.Value.ToString("dd/MM/yyyy") : "Hoje")</span>
+        </div>
+        <div class="confirm-field">
+            <span class="confirm-label">Organização</span>
+            <span>@orgLabel</span>
+        </div>
+        @if (taskModel.IsRecurrent)
+        {
+            <div class="confirm-field">
+                <span class="confirm-label">Recorrência</span>
+                <span class="badge" style="background:#6f42c1;">
+                    🔄 @(taskModel.RecurrencePattern switch {
+                        "Daily"   => "Diária",
+                        "Weekly"  => "Semanal",
+                        "Monthly" => "Mensal",
+                        _         => taskModel.RecurrencePattern
+                    })
+                </span>
+            </div>
+        }
+        @if (depTasks.Any())
+        {
+            <div class="confirm-field align-items-start">
+                <span class="confirm-label">Dependências</span>
+                <div class="d-flex flex-column gap-1">
+                    @foreach (var dep in depTasks)
+                    {
+                        <span class="badge bg-light text-dark border">
+                            <span class="text-muted me-1">#@dep.Id</span>@dep.Title
+                        </span>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary flex-grow-1" @onclick="SaveConfirmed" @onclick:stopPropagation="true">
+                <i class="bi bi-check-lg me-1"></i>
+                @(TaskId.HasValue ? "Salvar Alterações" : "Criar Tarefa")
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="() => showConfirm = false" @onclick:stopPropagation="true">
+                Revisar
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .confirm-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 1040;
+    }
+    .confirm-overlay {
+        position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1050;
+        background: white;
+        border-radius: 12px;
+        padding: 28px 32px;
+        width: 400px;
+        max-width: calc(100vw - 32px);
+        box-shadow: 0 8px 32px rgba(0,0,0,.18);
+        border-top: 4px solid #0d6efd;
+        animation: confirmIn 0.18s ease;
+    }
+    @@keyframes confirmIn {
+        from { opacity: 0; transform: translate(-50%, -54%); }
+        to   { opacity: 1; transform: translate(-50%, -50%); }
+    }
+    .confirm-field {
+        display: flex; align-items: center; gap: 12px;
+        padding: 8px 0; border-bottom: 1px solid #f0f0f0;
+        font-size: .9rem;
+    }
+    .confirm-label {
+        min-width: 100px; color: #6c757d;
+        font-size: .8rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .04em;
+    }
+</style>
+
 @code {
     [Parameter] public int? TaskId { get; set; }
     private TaskItem? editingTask;
-    private TaskItem taskModel = new();
+    private TaskItem taskModel = new() { RecurrencePattern = "Daily" };
+    private bool showConfirm = false;
     private string tagsInput = "";
     private string? currentUserId;
     private List<TaskItem> availableTasks = new();
@@ -468,6 +579,27 @@
         taskModel.Tags = tagsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
 
+        // Default DueDate to today if not set
+        if (!taskModel.DueDate.HasValue)
+            taskModel.DueDate = DateTime.UtcNow.Date;
+
+        // Default RecurrencePattern if recurrent but none selected
+        if (taskModel.IsRecurrent && string.IsNullOrEmpty(taskModel.RecurrencePattern))
+            taskModel.RecurrencePattern = "Daily";
+
+        showConfirm = true;
+    }
+
+    private async Task SaveConfirmed()
+    {
+        showConfirm = false;
+
+        // Normalize to UTC noon — prevents timezone shift from moving date one day back
+        if (taskModel.DueDate.HasValue)
+            taskModel.DueDate = DateTime.SpecifyKind(taskModel.DueDate.Value.Date.AddHours(12), DateTimeKind.Utc);
+        if (taskModel.AlarmTime.HasValue)
+            taskModel.AlarmTime = DateTime.SpecifyKind(taskModel.AlarmTime.Value.Date.AddHours(12), DateTimeKind.Utc);
+
         if (TaskId.HasValue && editingTask != null)
         {
             taskModel.Id = editingTask.Id;
@@ -477,6 +609,8 @@
         {
             await TaskService.CreateTaskAsync(taskModel);
         }
+
+        AppState.NotifyTasksChanged();
 
         var redirect = taskModel.OrganizationId.HasValue
             ? $"/tasks?orgId={taskModel.OrganizationId}"

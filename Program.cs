@@ -23,6 +23,7 @@ builder.Services.AddScoped<TaskService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<OrganizationService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddSingleton<AppState>();
 
 var app = builder.Build();
 

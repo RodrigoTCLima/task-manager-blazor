@@ -7,7 +7,9 @@
 @inject OrganizationService OrgService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
+@inject AppState AppState
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>Calendário de Tarefas</PageTitle>
 
@@ -430,6 +432,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Nav.LocationChanged += OnLocationChanged;
+        AppState.OnTasksChanged += OnTasksChanged;
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         currentUserId = auth.User.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -528,10 +532,24 @@ else
     {
         return filteredTasks.Where(t =>
         {
-            var taskDate = dateType == "due"
-                ? t.DueDate?.ToLocalTime().Date
-                : t.CreatedAt.ToLocalTime().Date;
-            return taskDate == date;
+            if (dateType == "created")
+                return t.CreatedAt.ToLocalTime().Date == date;
+
+            // Recurrent tasks: expand occurrences based on pattern
+            if (t.IsRecurrent && t.DueDate.HasValue && !string.IsNullOrEmpty(t.RecurrencePattern))
+            {
+                var origin = t.DueDate.Value.ToLocalTime().Date;
+                if (date < origin) return false;
+                return t.RecurrencePattern switch
+                {
+                    "Daily"   => true,
+                    "Weekly"  => (date - origin).Days % 7 == 0,
+                    "Monthly" => date.Day == origin.Day,
+                    _         => date == origin
+                };
+            }
+
+            return t.DueDate?.ToLocalTime().Date == date;
         })
         .OrderBy(t => t.Priority)
         .ToList();
@@ -672,5 +690,38 @@ else
             : $"/add-task?dueDate={dateStr}";
         Nav.NavigateTo(url);
         panelOpen = false;
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        // Reload when navigating back to /calendar
+        if (e.Location.Contains("/calendar"))
+        {
+            await LoadDataAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
+
+        availableCategories = allTasks
+            .Select(t => t.Category).Where(c => !string.IsNullOrEmpty(c))
+            .Distinct().OrderBy(c => c).ToList();
+
+        BuildCalendar();
+    }
+
+    private async void OnTasksChanged()
+    {
+        await LoadDataAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        AppState.OnTasksChanged -= OnTasksChanged;
     }
 }
