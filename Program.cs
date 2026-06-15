@@ -58,7 +58,8 @@ var app = builder.Build();
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
+    // Temporarily show detailed errors to debug registration issue
+    app.UseDeveloperExceptionPage();
     app.UseHsts();
 
     app.Use(async (context, next) =>
