@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using TaskManager.Components;
 using TaskManager.Data;
 using TaskManager.Services;
@@ -15,20 +16,24 @@ var isDev = builder.Environment.IsDevelopment();
 
 if (isDev)
 {
-    builder.Services.AddDbContext<AppDbContext>(options =>
+    builder.Services.AddDbContextFactory<AppDbContext>(options =>
         options
             .UseSqlite("Data Source=tasks.db")
             .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+    builder.Services.AddScoped<AppDbContext>(p =>
+        p.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 }
 else
 {
     var dbUrl = Environment.GetEnvironmentVariable("DATABASE_URL")
         ?? throw new InvalidOperationException("DATABASE_URL is not set.");
 
-    builder.Services.AddDbContext<AppDbContext>(options =>
+    builder.Services.AddDbContextFactory<AppDbContext>(options =>
         options
             .UseNpgsql(dbUrl)
             .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+    builder.Services.AddScoped<AppDbContext>(p =>
+        p.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 }
 
 // ── IDENTITY ──────────────────────────────────────────────────────────────────
