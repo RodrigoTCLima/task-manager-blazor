@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -13,7 +13,7 @@ namespace TaskManager.Migrations
             if (migrationBuilder.ActiveProvider != "Npgsql.EntityFrameworkCore.PostgreSQL")
                 return;
 
-            // Fix AspNetUsers boolean columns
+            // AspNetUsers
             migrationBuilder.Sql(@"
                 ALTER TABLE ""AspNetUsers""
                     ALTER COLUMN ""EmailConfirmed"" TYPE boolean USING ""EmailConfirmed""::boolean,
@@ -22,7 +22,7 @@ namespace TaskManager.Migrations
                     ALTER COLUMN ""LockoutEnabled"" TYPE boolean USING ""LockoutEnabled""::boolean;
             ");
 
-            // Fix Tasks boolean columns
+            // Tasks
             migrationBuilder.Sql(@"
                 ALTER TABLE ""Tasks""
                     ALTER COLUMN ""IsCompleted"" TYPE boolean USING ""IsCompleted""::boolean,
@@ -30,10 +30,16 @@ namespace TaskManager.Migrations
                     ALTER COLUMN ""IsRecurrent"" TYPE boolean USING ""IsRecurrent""::boolean;
             ");
 
-            // Fix Organizations boolean column
+            // Organizations
             migrationBuilder.Sql(@"
                 ALTER TABLE ""Organizations""
                     ALTER COLUMN ""AllowJoinRequests"" TYPE boolean USING ""AllowJoinRequests""::boolean;
+            ");
+
+            // Notifications
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""Notifications""
+                    ALTER COLUMN ""IsRead"" TYPE boolean USING ""IsRead""::boolean;
             ");
         }
 
@@ -61,6 +67,11 @@ namespace TaskManager.Migrations
             migrationBuilder.Sql(@"
                 ALTER TABLE ""Organizations""
                     ALTER COLUMN ""AllowJoinRequests"" TYPE integer USING ""AllowJoinRequests""::integer;
+            ");
+
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""Notifications""
+                    ALTER COLUMN ""IsRead"" TYPE integer USING ""IsRead""::integer;
             ");
         }
     }
