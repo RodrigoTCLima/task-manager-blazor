@@ -7,21 +7,24 @@ namespace TaskManager.Services;
 
 public class OrganizationService
 {
-    private readonly AppDbContext _context;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly UserManager<IdentityUser> _userManager;
     private readonly NotificationService _notificationService;
 
-    public OrganizationService(AppDbContext context, UserManager<IdentityUser> userManager, NotificationService notificationService)
+    public OrganizationService(IDbContextFactory<AppDbContext> contextFactory, UserManager<IdentityUser> userManager, NotificationService notificationService)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _userManager = userManager;
         _notificationService = notificationService;
     }
+
+    private AppDbContext CreateContext() => _contextFactory.CreateDbContext();
 
     // ── ORGANIZAÇÕES ────────────────────────────────────────────
 
     public async Task<List<Organization>> GetUserOrganizationsAsync(string userId)
     {
+        using var _context = CreateContext();
         return await _context.OrganizationMembers
             .Where(m => m.UserId == userId)
             .Include(m => m.Organization)
@@ -33,6 +36,7 @@ public class OrganizationService
 
     public async Task<Organization?> GetOrganizationByIdAsync(int id)
     {
+        using var _context = CreateContext();
         return await _context.Organizations
             .Include(o => o.Members)
             .Include(o => o.Invites)
@@ -42,6 +46,7 @@ public class OrganizationService
 
     public async Task<List<Organization>> SearchOrganizationsAsync(string query)
     {
+        using var _context = CreateContext();
         return await _context.Organizations
             .Where(o => o.AllowJoinRequests && o.Name.Contains(query))
             .AsNoTracking()
@@ -50,6 +55,7 @@ public class OrganizationService
 
     public async Task<Organization> CreateOrganizationAsync(Organization org, string ownerUserId, string ownerUserName)
     {
+        using var _context = CreateContext();
         org.OwnerId = ownerUserId;
         org.CreatedAt = DateTime.UtcNow;
         _context.Organizations.Add(org);
@@ -70,6 +76,7 @@ public class OrganizationService
 
     public async Task UpdateOrganizationAsync(Organization org)
     {
+        using var _context = CreateContext();
         var existing = await _context.Organizations.FindAsync(org.Id);
         if (existing == null) return;
 
@@ -88,6 +95,7 @@ public class OrganizationService
 
     public async Task DeleteOrganizationAsync(int orgId)
     {
+        using var _context = CreateContext();
         var org = await _context.Organizations.FindAsync(orgId);
         if (org == null) return;
         _context.Organizations.Remove(org);
@@ -98,6 +106,7 @@ public class OrganizationService
 
     public async Task<MemberRole?> GetUserRoleAsync(int orgId, string userId)
     {
+        using var _context = CreateContext();
         var member = await _context.OrganizationMembers
             .FirstOrDefaultAsync(m => m.OrganizationId == orgId && m.UserId == userId);
         return member?.Role;
@@ -105,12 +114,14 @@ public class OrganizationService
 
     public async Task<bool> IsMemberAsync(int orgId, string userId)
     {
+        using var _context = CreateContext();
         return await _context.OrganizationMembers
             .AnyAsync(m => m.OrganizationId == orgId && m.UserId == userId);
     }
 
     public async Task SetMemberRoleAsync(int orgId, string userId, MemberRole newRole)
     {
+        using var _context = CreateContext();
         var member = await _context.OrganizationMembers
             .FirstOrDefaultAsync(m => m.OrganizationId == orgId && m.UserId == userId);
         if (member == null) return;
@@ -120,13 +131,13 @@ public class OrganizationService
 
     public async Task RemoveMemberAsync(int orgId, string userId)
     {
+        using var _context = CreateContext();
         var member = await _context.OrganizationMembers
             .FirstOrDefaultAsync(m => m.OrganizationId == orgId && m.UserId == userId);
         if (member == null) return;
         _context.OrganizationMembers.Remove(member);
         await _context.SaveChangesAsync();
 
-        // Notifica o usuário removido
         var org = await _context.Organizations.FindAsync(orgId);
         await _notificationService.CreateAsync(
             userId: userId,
@@ -136,9 +147,9 @@ public class OrganizationService
         );
     }
 
-
     public async Task TransferOwnershipAsync(int orgId, string currentOwnerId, string newOwnerId)
     {
+        using var _context = CreateContext();
         var org = await _context.Organizations.FindAsync(orgId);
         if (org == null || org.OwnerId != currentOwnerId) return;
 
@@ -158,6 +169,7 @@ public class OrganizationService
 
     public async Task<List<OrganizationInvite>> GetPendingInvitesForUserAsync(string userId)
     {
+        using var _context = CreateContext();
         return await _context.OrganizationInvites
             .Include(i => i.Organization)
             .Where(i => i.TargetUserId == userId && i.Status == InviteStatus.Pending)
@@ -167,6 +179,7 @@ public class OrganizationService
 
     public async Task<List<OrganizationInvite>> GetPendingRequestsForOrgAsync(int orgId)
     {
+        using var _context = CreateContext();
         return await _context.OrganizationInvites
             .Where(i => i.OrganizationId == orgId && i.Status == InviteStatus.Pending
                         && i.InitiatedByUserId == i.TargetUserId)
@@ -177,6 +190,7 @@ public class OrganizationService
     public async Task SendInviteAsync(int orgId, string targetUserId, string targetUserName,
                                       string invitedByUserId, string invitedByUserName)
     {
+        using var _context = CreateContext();
         var exists = await _context.OrganizationInvites.AnyAsync(i =>
             i.OrganizationId == orgId && i.TargetUserId == targetUserId &&
             i.Status == InviteStatus.Pending);
@@ -196,7 +210,6 @@ public class OrganizationService
         });
         await _context.SaveChangesAsync();
 
-        // Notifica o usuário convidado
         await _notificationService.CreateAsync(
             userId: targetUserId,
             message: $"{invitedByUserName} convidou você para a organização \"{org?.Name}\"",
@@ -207,6 +220,7 @@ public class OrganizationService
 
     public async Task RequestJoinAsync(int orgId, string userId, string userName)
     {
+        using var _context = CreateContext();
         var org = await _context.Organizations.FindAsync(orgId);
         if (org == null || !org.AllowJoinRequests) return;
 
@@ -227,7 +241,6 @@ public class OrganizationService
         });
         await _context.SaveChangesAsync();
 
-        // Notifica o dono da org
         await _notificationService.CreateAsync(
             userId: org.OwnerId,
             message: $"{userName} solicitou entrada na organização \"{org.Name}\"",
@@ -238,6 +251,7 @@ public class OrganizationService
 
     public async Task ResolveInviteAsync(int inviteId, bool accept, string resolvedByUserId)
     {
+        using var _context = CreateContext();
         var invite = await _context.OrganizationInvites.FindAsync(inviteId);
         if (invite == null || invite.Status != InviteStatus.Pending) return;
 
@@ -249,7 +263,8 @@ public class OrganizationService
 
         if (accept)
         {
-            var alreadyMember = await IsMemberAsync(invite.OrganizationId, invite.TargetUserId);
+            var alreadyMember = await _context.OrganizationMembers
+                .AnyAsync(m => m.OrganizationId == invite.OrganizationId && m.UserId == invite.TargetUserId);
             if (!alreadyMember)
             {
                 _context.OrganizationMembers.Add(new OrganizationMember
@@ -265,10 +280,8 @@ public class OrganizationService
 
         await _context.SaveChangesAsync();
 
-        // Notificações de retorno
         if (isApplication)
         {
-            // Candidatura: notifica o candidato sobre o resultado
             await _notificationService.CreateAsync(
                 userId: invite.TargetUserId,
                 message: accept
@@ -280,7 +293,6 @@ public class OrganizationService
         }
         else
         {
-            // Convite: notifica o dono sobre a resposta do convidado
             await _notificationService.CreateAsync(
                 userId: invite.InitiatedByUserId,
                 message: accept
@@ -292,7 +304,7 @@ public class OrganizationService
         }
     }
 
-    // ── HELPERS ──────────────────────────────────────────────────
+    // ── HELPERS (sem acesso a banco — permanecem iguais) ──────────
 
     public bool CanCreateTask(Organization org, MemberRole role)
     {

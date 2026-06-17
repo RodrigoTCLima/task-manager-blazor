@@ -6,6 +6,7 @@ using TaskManager.Components;
 using TaskManager.Data;
 using TaskManager.Services;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()

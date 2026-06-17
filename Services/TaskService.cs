@@ -12,22 +12,26 @@ namespace TaskManager.Services;
 
 public class TaskService
 {
-    private readonly AppDbContext _context;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly NotificationService _notificationService;
     private readonly IServiceProvider _serviceProvider;
 
-    public TaskService(AppDbContext context, NotificationService notificationService, IServiceProvider serviceProvider)
+    public TaskService(IDbContextFactory<AppDbContext> contextFactory, NotificationService notificationService, IServiceProvider serviceProvider)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _notificationService = notificationService;
         _serviceProvider = serviceProvider;
     }
 
+    private AppDbContext CreateContext() => _contextFactory.CreateDbContext();
+
     // Resolve OrganizationService lazily to avoid circular DI
     private OrganizationService OrgService =>
         _serviceProvider.GetRequiredService<OrganizationService>();
+
     public async Task<List<TaskItem>> GetAllTasksAsync(string? userId = null, int? orgId = null)
     {
+        using var _context = CreateContext();
         IQueryable<TaskItem> query = _context.Tasks
             .Include(t => t.Comments)
             .AsNoTracking();
@@ -50,6 +54,7 @@ public class TaskService
 
     public async Task<TaskItem?> GetTaskByIdAsync(int id, string? userId = null)
     {
+        using var _context = CreateContext();
         return await _context.Tasks
             .Include(t => t.Comments)
             .AsNoTracking()
@@ -58,6 +63,7 @@ public class TaskService
 
     public async Task<TaskItem> CreateTaskAsync(TaskItem task)
     {
+        using var _context = CreateContext();
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
         return task;
@@ -65,6 +71,7 @@ public class TaskService
 
     public async Task UpdateTaskAsync(TaskItem task, string? requestingUserId = null)
     {
+        using var _context = CreateContext();
         var existing = await _context.Tasks.FindAsync(task.Id);
         if (existing == null) return;
 
@@ -99,7 +106,6 @@ public class TaskService
         existing.RecurrencePattern = task.RecurrencePattern;
         existing.IsCompleted = task.IsCompleted;
         existing.KanbanStatus = task.KanbanStatus;
-        // Keep KanbanStatus in sync with IsCompleted
         if (task.IsCompleted && existing.KanbanStatus != KanbanStatus.Done)
             existing.KanbanStatus = KanbanStatus.Done;
         existing.Tags = task.Tags;
@@ -112,7 +118,6 @@ public class TaskService
 
         await _context.SaveChangesAsync();
 
-        // Notifica responsáveis quando a task for revisada/aprovada
         if (wasReviewed && task.AssignedToUserIds != null)
         {
             foreach (var uid in task.AssignedToUserIds)
@@ -127,13 +132,12 @@ public class TaskService
         }
     }
 
-
     public async Task DeleteTaskAsync(int id, string? requestingUserId = null)
     {
+        using var _context = CreateContext();
         var task = await _context.Tasks.FindAsync(id);
         if (task == null) return;
 
-        // Backend permission guard
         if (requestingUserId != null)
         {
             if (task.OrganizationId.HasValue)
@@ -141,11 +145,11 @@ public class TaskService
                 var org = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
                 var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, requestingUserId);
                 if (org == null || !role.HasValue || !OrgService.CanDeleteTask(org, role.Value))
-                    return; // silently block
+                    return;
             }
             else if (task.AuthorUserId != requestingUserId)
             {
-                return; // only author can delete personal tasks
+                return;
             }
         }
 
@@ -153,18 +157,18 @@ public class TaskService
         await _context.SaveChangesAsync();
     }
 
-    // Listar comentários de uma tarefa
     public async Task<List<Comment>> GetCommentsAsync(int taskId)
     {
+        using var _context = CreateContext();
         return await _context.Comments
             .Where(c => c.TaskItemId == taskId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync();
     }
 
-    // Adicionar comentário
     public async Task<Comment> AddCommentAsync(Comment comment)
     {
+        using var _context = CreateContext();
         _context.Comments.Add(comment);
         await _context.SaveChangesAsync();
 
@@ -180,7 +184,7 @@ public class TaskService
                 foreach (var uid in task.AssignedToUserIds)
                     toNotify.Add(uid);
 
-            toNotify.Remove(comment.AuthorUserId); // não notifica quem comentou
+            toNotify.Remove(comment.AuthorUserId);
 
             foreach (var uid in toNotify)
             {
@@ -196,10 +200,9 @@ public class TaskService
         return comment;
     }
 
-
-    // Deletar comentário
     public async Task DeleteCommentAsync(int commentId)
     {
+        using var _context = CreateContext();
         var comment = await _context.Comments.FindAsync(commentId);
         if (comment != null)
         {
@@ -210,10 +213,10 @@ public class TaskService
 
     public async Task ToggleCompleteAsync(int id, string completedByUserId)
     {
+        using var _context = CreateContext();
         var task = await _context.Tasks.FindAsync(id);
         if (task == null) return;
 
-        // Backend permission guard — assignees always allowed regardless of policy
         var isAssignee = task.AssignedToUserIds?.Contains(completedByUserId) == true;
         var isAuthor   = task.AuthorUserId == completedByUserId;
 
@@ -224,18 +227,17 @@ public class TaskService
                 var org  = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
                 var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, completedByUserId);
                 if (org == null || !role.HasValue || !OrgService.CanCompleteTask(org, role.Value))
-                    return; // silently block
+                    return;
             }
             else
             {
-                return; // personal task — only author or assignee
+                return;
             }
         }
 
         task.IsCompleted = !task.IsCompleted;
         await _context.SaveChangesAsync();
 
-        // Notifica os outros responsáveis quando a task for concluída
         if (task.IsCompleted && task.AssignedToUserIds != null)
         {
             var others = task.AssignedToUserIds
@@ -256,6 +258,7 @@ public class TaskService
 
     public async Task<bool> HasPendingDependenciesAsync(int taskId)
     {
+        using var _context = CreateContext();
         var task = await _context.Tasks
             .FirstOrDefaultAsync(t => t.Id == taskId);
 
@@ -268,6 +271,7 @@ public class TaskService
 
     public async Task<List<TaskItem>> GetDependenciesAsync(int taskId)
     {
+        using var _context = CreateContext();
         var task = await _context.Tasks
             .FirstOrDefaultAsync(t => t.Id == taskId);
 
@@ -279,19 +283,17 @@ public class TaskService
             .ToListAsync();
     }
 
-
     public async Task<HashSet<int>> GetDependencyChainAsync(int taskId)
     {
+        using var _context = CreateContext();
         var allTasks = await _context.Tasks.AsNoTracking().ToListAsync();
         var forbidden = new HashSet<int>();
         BuildAncestorChain(taskId, allTasks, forbidden);
         return forbidden;
     }
 
-    // Percorre quem depende de taskId (ascendentes) — evita ciclo
     private void BuildAncestorChain(int taskId, List<TaskItem> allTasks, HashSet<int> visited)
     {
-        // Encontrar tarefas que têm taskId como dependência
         var dependents = allTasks
             .Where(t => t.DependencyOnTaskIds != null && t.DependencyOnTaskIds.Contains(taskId))
             .ToList();
@@ -305,6 +307,7 @@ public class TaskService
 
     public async Task<List<TaskItem>> GetFilteredTasksAsync(string? userId, int? orgId, TaskFilter filter)
     {
+        using var _context = CreateContext();
         IQueryable<TaskItem> query = _context.Tasks
             .Include(t => t.Comments)
             .AsNoTracking();
@@ -351,10 +354,10 @@ public class TaskService
 
     public async Task UpdateKanbanStatusAsync(int taskId, KanbanStatus newStatus, string requestingUserId, string? recurrencePattern = null)
     {
+        using var _context = CreateContext();
         var task = await _context.Tasks.FindAsync(taskId);
         if (task == null) return;
 
-        // Permission check — same as complete for Done, edit for others
         if (task.OrganizationId.HasValue)
         {
             var org  = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
@@ -380,17 +383,17 @@ public class TaskService
         }
 
         task.KanbanStatus = newStatus;
-
-        // Sync IsCompleted with Done status
         task.IsCompleted = newStatus == KanbanStatus.Done;
 
-        // Sync IsRecurrent if moved to Recurrent column
         if (newStatus == KanbanStatus.Recurrent)
+        {
             task.IsRecurrent = true;
+            if (recurrencePattern != null)
+                task.RecurrencePattern = recurrencePattern;
+        }
 
         await _context.SaveChangesAsync();
 
-        // Notify assignees when task is marked Done
         if (newStatus == KanbanStatus.Done && task.AssignedToUserIds != null)
         {
             var others = task.AssignedToUserIds.Where(uid => uid != requestingUserId).ToList();
@@ -406,8 +409,15 @@ public class TaskService
         }
     }
 
+    // Overload sem recurrencePattern, usado pelo Kanban.razor em chamadas simples
+    public async Task UpdateKanbanStatusAsync(int taskId, KanbanStatus newStatus, string requestingUserId)
+    {
+        await UpdateKanbanStatusAsync(taskId, newStatus, requestingUserId, null);
+    }
+
     public async Task<int> GetPendingTaskCountForUserInOrgAsync(string userId, int orgId)
     {
+        using var _context = CreateContext();
         var tasks = await _context.Tasks
             .Where(t => t.OrganizationId == orgId && !t.IsCompleted)
             .AsNoTracking()
@@ -420,5 +430,4 @@ public class TaskService
                 && !(t.ReviewedByUserId != null && t.ReviewedByUserId.Contains(userId)))
         );
     }
-
 }
