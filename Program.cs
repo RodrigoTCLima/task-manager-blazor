@@ -6,7 +6,6 @@ using TaskManager.Components;
 using TaskManager.Data;
 using TaskManager.Services;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
@@ -40,7 +39,10 @@ else
 // ── IDENTITY ──────────────────────────────────────────────────────────────────
 builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 {
-    options.SignIn.RequireConfirmedAccount = false;
+    // Em produção, exige confirmação de email antes de permitir login
+    // Em dev, fica desabilitado pois não há servidor de email configurado
+    options.SignIn.RequireConfirmedAccount = !isDev;
+    options.SignIn.RequireConfirmedEmail = !isDev;
     options.Password.RequireDigit = true;
     options.Password.RequiredLength = 8;
     options.Password.RequireNonAlphanumeric = false;
@@ -64,8 +66,7 @@ var app = builder.Build();
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────────
 if (!app.Environment.IsDevelopment())
 {
-    // Temporarily show detailed errors to debug registration issue
-    app.UseDeveloperExceptionPage();
+    app.UseExceptionHandler("/Error");
     app.UseHsts();
 
     app.Use(async (context, next) =>
