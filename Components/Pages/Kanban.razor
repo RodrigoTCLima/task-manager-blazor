@@ -40,10 +40,16 @@ else if (isLoading)
 }
 else
 {
-    @if (orgId.HasValue && orgName != null)
-    {
-        <div class="alert alert-primary d-flex justify-content-between align-items-center py-2 mb-3">
-            <span>🏢 <strong>@orgName</strong></span>
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <select class="form-select form-select-sm" style="width:auto;" @bind="selectedOrgId" @bind:after="OnOrgChanged">
+            <option value="">👤 Pessoal</option>
+            @foreach (var org in availableOrgs)
+            {
+                <option value="@org.Id">🏢 @org.Name</option>
+            }
+        </select>
+        @if (orgId.HasValue)
+        {
             @if (canViewOthers)
             {
                 <span class="badge bg-primary">Visão geral</span>
@@ -52,24 +58,24 @@ else
             {
                 <span class="badge bg-secondary">Suas tarefas</span>
             }
-        </div>
-    }
+        }
+    </div>
 
     <!-- Filtros -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body py-2 px-3">
             <div class="d-flex flex-wrap align-items-center gap-3">
                 <small class="text-muted fw-semibold">Filtros:</small>
-                <select class="form-select form-select-sm" style="width:140px;"
-                        @bind="filterCategory" @bind:after="ApplyFilters">
+                <select class="form-select form-select-sm" style="width:140px;" @bind="filterCategory"
+                        @bind:after="ApplyFilters">
                     <option value="">Todas categorias</option>
                     @foreach (var cat in availableCategories)
                     {
                         <option value="@cat">@cat</option>
                     }
                 </select>
-                <select class="form-select form-select-sm" style="width:150px;"
-                        @bind="filterPriority" @bind:after="ApplyFilters">
+                <select class="form-select form-select-sm" style="width:150px;" @bind="filterPriority"
+                        @bind:after="ApplyFilters">
                     <option value="0">Todas prioridades</option>
                     <option value="2">🔴 Crítica (P≤2)</option>
                     <option value="5">🟠 Alta (P≤5)</option>
@@ -90,9 +96,7 @@ else
         @foreach (var col in columns)
         {
             var colTasks = GetColumnTasks(col.Status);
-            <div class="kanban-col"
-                 @ondragover:preventDefault="true"
-                 @ondrop="() => OnDrop(col.Status)">
+            <div class="kanban-col" @ondragover:preventDefault="true" @ondrop="() => OnDrop(col.Status)">
 
                 <div class="kanban-col-header" style="border-top: 3px solid @col.Color;">
                     <span class="fw-bold">@col.Icon @col.Title</span>
@@ -103,14 +107,11 @@ else
                     @foreach (var task in colTasks)
                     {
                         var isDragging = draggingTaskId == task.Id;
-                        <div class="kanban-card @(isDragging ? "dragging" : "")"
-                             draggable="true"
-                             @ondragstart="() => OnDragStart(task.Id)"
-                             @ondragend="OnDragEnd">
+                        <div class="kanban-card @(isDragging ? "dragging" : "")" draggable="true"
+                             @ondragstart="() => OnDragStart(task.Id)" @ondragend="OnDragEnd">
 
                             <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
-                                <a href="/task/@task.Id"
-                                   class="text-decoration-none text-dark fw-semibold small flex-grow-1"
+                                <a href="/task/@task.Id" class="text-decoration-none text-dark fw-semibold small flex-grow-1"
                                    @onclick:stopPropagation="true">
                                     <span class="text-muted me-1" style="font-size:.65rem;">#@task.Id</span>
                                     @task.Title
@@ -123,7 +124,8 @@ else
                             @if (!string.IsNullOrEmpty(task.Description))
                             {
                                 <p class="text-muted mb-2" style="font-size:.7rem; line-height:1.3;">
-                                    @task.Description[..Math.Min(60, task.Description.Length)]@(task.Description.Length > 60 ? "..." : "")
+                                    @task.Description[..Math.Min(60, task.Description.Length)]@(task.Description.Length > 60 ? "..." :
+                                    "")
                                 </p>
                             }
 
@@ -208,8 +210,7 @@ else
             {
                 var isSelected = pendingRecurrencePattern == opt.Item1;
                 <button class="btn @(isSelected ? "btn-primary" : "btn-outline-secondary") flex-grow-1"
-                        @onclick="() => pendingRecurrencePattern = opt.Item1"
-                        @onclick:stopPropagation="true">
+                        @onclick="() => pendingRecurrencePattern = opt.Item1" @onclick:stopPropagation="true">
                     @opt.Item2
                 </button>
             }
@@ -233,6 +234,7 @@ else
         gap: 16px;
         align-items: start;
     }
+
     .kanban-col {
         background: #f8f9fa;
         border-radius: 10px;
@@ -241,6 +243,7 @@ else
         display: flex;
         flex-direction: column;
     }
+
     .kanban-col-header {
         display: flex;
         justify-content: space-between;
@@ -250,6 +253,7 @@ else
         border-bottom: 1px solid #dee2e6;
         font-size: .9rem;
     }
+
     .kanban-cards {
         padding: 10px;
         flex: 1;
@@ -258,6 +262,7 @@ else
         gap: 8px;
         min-height: 100px;
     }
+
     .kanban-card {
         background: white;
         border: 1px solid #dee2e6;
@@ -267,11 +272,17 @@ else
         transition: box-shadow 0.15s, opacity 0.15s, transform 0.15s;
         user-select: none;
     }
+
     .kanban-card:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
         transform: translateY(-1px);
     }
-    .kanban-card.dragging { opacity: 0.4; cursor: grabbing; }
+
+    .kanban-card.dragging {
+        opacity: 0.4;
+        cursor: grabbing;
+    }
+
     .kanban-empty {
         display: flex;
         align-items: center;
@@ -280,12 +291,14 @@ else
         border: 2px dashed #dee2e6;
         border-radius: 8px;
     }
+
     .recurrence-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.45);
+        background: rgba(0, 0, 0, 0.45);
         z-index: 1040;
     }
+
     .recurrence-overlay {
         position: fixed;
         top: 50%;
@@ -297,16 +310,34 @@ else
         padding: 28px 32px;
         width: 380px;
         max-width: calc(100vw - 32px);
-        box-shadow: 0 8px 32px rgba(0,0,0,.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, .2);
         border-top: 4px solid #6f42c1;
         animation: overlayIn 0.18s ease;
     }
+
     @@keyframes overlayIn {
-        from { opacity: 0; transform: translate(-50%, -54%); }
-        to   { opacity: 1; transform: translate(-50%, -50%); }
+        from {
+            opacity: 0;
+            transform: translate(-50%, -54%);
+        }
+
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%);
+        }
     }
-    @@media (max-width: 992px) { .kanban-board { grid-template-columns: repeat(2, 1fr); } }
-    @@media (max-width: 576px) { .kanban-board { grid-template-columns: 1fr; } }
+
+    @@media (max-width: 992px) {
+        .kanban-board {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .kanban-board {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 @code {
@@ -315,6 +346,8 @@ else
     private string? currentUserId;
     private int? orgId;
     private string? orgName;
+    private List<Organization> availableOrgs = new();
+    private string selectedOrgId = "";
     private bool canViewOthers = false;
 
     private List<TaskItem> allTasks = new();
@@ -334,10 +367,10 @@ else
 
     private readonly List<KanbanColumn> columns = new()
     {
-        new(KanbanStatus.Todo,       "A fazer",      "📋", "#0d6efd"),
+        new(KanbanStatus.Todo, "A fazer", "📋", "#0d6efd"),
         new(KanbanStatus.InProgress, "Em andamento", "⚡", "#fd7e14"),
-        new(KanbanStatus.Done,       "Concluída",    "✅", "#198754"),
-        new(KanbanStatus.Recurrent,  "Recorrentes",  "🔄", "#6f42c1"),
+        new(KanbanStatus.Done, "Concluída", "✅", "#198754"),
+        new(KanbanStatus.Recurrent, "Recorrentes", "🔄", "#6f42c1"),
     };
 
     protected override async Task OnInitializedAsync()
@@ -345,12 +378,13 @@ else
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         currentUserId = auth.User.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
+        availableOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId!);
         var uri = Nav.ToAbsoluteUri(Nav.Uri);
-        var qs  = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        var qs = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
         if (qs.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
         {
-            orgId   = parsedOrgId;
+            orgId = parsedOrgId;
+            selectedOrgId = parsedOrgId.ToString();
             var org = await OrgService.GetOrganizationByIdAsync(parsedOrgId);
             orgName = org?.Name;
 
@@ -360,7 +394,7 @@ else
                 if (!role.HasValue || !OrgService.CanViewKanban(org, role.Value))
                 {
                     accessDenied = true;
-                    isLoading    = false;
+                    isLoading = false;
                     return;
                 }
                 canViewOthers = OrgService.CanViewOthersKanban(org, role.Value);
@@ -394,6 +428,13 @@ else
         isLoading = false;
     }
 
+    private async Task OnOrgChanged()
+    {
+        if (string.IsNullOrEmpty(selectedOrgId))
+            Nav.NavigateTo("/kanban", forceLoad: true);
+        else
+            Nav.NavigateTo($"/kanban?orgId={selectedOrgId}", forceLoad: true);
+    }
     private void ApplyFilters()
     {
         var result = allTasks.AsEnumerable();
@@ -415,7 +456,7 @@ else
         => filteredTasks.Where(t => t.KanbanStatus == status).OrderBy(t => t.Priority).ToList();
 
     private void OnDragStart(int taskId) => draggingTaskId = taskId;
-    private void OnDragEnd()             => draggingTaskId = null;
+    private void OnDragEnd() => draggingTaskId = null;
 
     private async Task OnDrop(KanbanStatus targetStatus)
     {
@@ -427,17 +468,17 @@ else
         // Dropping on Recurrent -> show overlay first
         if (targetStatus == KanbanStatus.Recurrent)
         {
-            pendingRecurrentTaskId  = draggingTaskId;
+            pendingRecurrentTaskId = draggingTaskId;
             pendingRecurrencePattern = task.RecurrencePattern ?? "Weekly";
-            showRecurrencePanel     = true;
-            draggingTaskId          = null;
+            showRecurrencePanel = true;
+            draggingTaskId = null;
             StateHasChanged();
             return;
         }
 
         task.KanbanStatus = targetStatus;
-        task.IsCompleted  = targetStatus == KanbanStatus.Done;
-        draggingTaskId    = null;
+        task.IsCompleted = targetStatus == KanbanStatus.Done;
+        draggingTaskId = null;
         StateHasChanged();
 
         await TaskService.UpdateKanbanStatusAsync(task.Id, targetStatus, currentUserId!);
@@ -450,14 +491,14 @@ else
         var task = allTasks.FirstOrDefault(t => t.Id == pendingRecurrentTaskId);
         if (task != null)
         {
-            task.KanbanStatus      = KanbanStatus.Recurrent;
-            task.IsRecurrent       = true;
+            task.KanbanStatus = KanbanStatus.Recurrent;
+            task.IsRecurrent = true;
             task.RecurrencePattern = pendingRecurrencePattern;
         }
 
-        showRecurrencePanel    = false;
-        var taskId             = pendingRecurrentTaskId.Value;
-        var pattern            = pendingRecurrencePattern;
+        showRecurrencePanel = false;
+        var taskId = pendingRecurrentTaskId.Value;
+        var pattern = pendingRecurrencePattern;
         pendingRecurrentTaskId = null;
         StateHasChanged();
 
@@ -466,33 +507,33 @@ else
 
     private void CancelRecurrence()
     {
-        showRecurrencePanel    = false;
+        showRecurrencePanel = false;
         pendingRecurrentTaskId = null;
     }
 
     private string GetRecurrenceLabel(string pattern) => pattern switch
     {
-        "Daily"   => "Diária",
-        "Weekly"  => "Semanal",
+        "Daily" => "Diária",
+        "Weekly" => "Semanal",
         "Monthly" => "Mensal",
-        _         => pattern
+        _ => pattern
     };
 
     private string GetPriorityBadge(int p) => p switch
     {
-        <= 2  => "bg-danger",
-        <= 5  => "bg-warning text-dark",
+        <= 2 => "bg-danger",
+        <= 5 => "bg-warning text-dark",
         <= 10 => "bg-info text-dark",
         <= 20 => "bg-success",
-        _     => "bg-secondary"
+        _ => "bg-secondary"
     };
 
     private string GetPriorityEmoji(int p) => p switch
     {
-        <= 2  => "🔴",
-        <= 5  => "🟠",
+        <= 2 => "🔴",
+        <= 5 => "🟠",
         <= 10 => "🟡",
         <= 20 => "🟢",
-        _     => "⚪"
+        _ => "⚪"
     };
 }
