@@ -127,3 +127,14 @@
         overflow-y: auto;
     }
 }
+
+.nav-bell {
+    margin-left: auto;
+    margin-right: 4.5rem;
+}
+
+@media (min-width: 641px) {
+    .nav-bell {
+        margin-right: 1rem;
+    }
+}

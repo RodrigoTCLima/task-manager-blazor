@@ -11,9 +11,9 @@
 
 <PageTitle>Kanban</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-kanban text-primary"></i>
+        <i class="bi bi-kanban text-primary fs-5"></i>
         <h5 class="mb-0">Kanban</h5>
     </div>
     <div class="d-flex gap-2">
@@ -64,18 +64,18 @@ else
     <!-- Filtros -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body py-2 px-3">
-            <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="d-flex flex-wrap align-items-center gap-2">
                 <small class="text-muted fw-semibold">Filtros:</small>
-                <select class="form-select form-select-sm" style="width:140px;" @bind="filterCategory"
-                        @bind:after="ApplyFilters">
+                <select class="form-select form-select-sm flex-grow-1" style="min-width:120px; max-width:180px;"
+                        @bind="filterCategory" @bind:after="ApplyFilters">
                     <option value="">Todas categorias</option>
                     @foreach (var cat in availableCategories)
                     {
                         <option value="@cat">@cat</option>
                     }
                 </select>
-                <select class="form-select form-select-sm" style="width:150px;" @bind="filterPriority"
-                        @bind:after="ApplyFilters">
+                <select class="form-select form-select-sm flex-grow-1" style="min-width:130px; max-width:180px;"
+                        @bind="filterPriority" @bind:after="ApplyFilters">
                     <option value="0">Todas prioridades</option>
                     <option value="2">🔴 Crítica (P≤2)</option>
                     <option value="5">🟠 Alta (P≤5)</option>
@@ -172,6 +172,15 @@ else
                                     </span>
                                 </div>
                             }
+
+                            <!-- Select de status: só aparece no mobile (touch) -->
+                            <select class="kanban-status-select d-md-none" value="@((int)task.KanbanStatus)"
+                                    @onchange="async e => await OnStatusSelectChanged(task.Id, e)">
+                                <option value="0">📋 A fazer</option>
+                                <option value="1">⚡ Em andamento</option>
+                                <option value="2">✅ Concluída</option>
+                                <option value="3">🔄 Recorrente</option>
+                            </select>
                         </div>
                     }
 
@@ -227,118 +236,6 @@ else
     </div>
 }
 
-<style>
-    .kanban-board {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
-        align-items: start;
-    }
-
-    .kanban-col {
-        background: #f8f9fa;
-        border-radius: 10px;
-        overflow: hidden;
-        min-height: 500px;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .kanban-col-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 12px 14px;
-        background: white;
-        border-bottom: 1px solid #dee2e6;
-        font-size: .9rem;
-    }
-
-    .kanban-cards {
-        padding: 10px;
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        min-height: 100px;
-    }
-
-    .kanban-card {
-        background: white;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 10px 12px;
-        cursor: grab;
-        transition: box-shadow 0.15s, opacity 0.15s, transform 0.15s;
-        user-select: none;
-    }
-
-    .kanban-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
-        transform: translateY(-1px);
-    }
-
-    .kanban-card.dragging {
-        opacity: 0.4;
-        cursor: grabbing;
-    }
-
-    .kanban-empty {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 32px 0;
-        border: 2px dashed #dee2e6;
-        border-radius: 8px;
-    }
-
-    .recurrence-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.45);
-        z-index: 1040;
-    }
-
-    .recurrence-overlay {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 1050;
-        background: white;
-        border-radius: 12px;
-        padding: 28px 32px;
-        width: 380px;
-        max-width: calc(100vw - 32px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, .2);
-        border-top: 4px solid #6f42c1;
-        animation: overlayIn 0.18s ease;
-    }
-
-    @@keyframes overlayIn {
-        from {
-            opacity: 0;
-            transform: translate(-50%, -54%);
-        }
-
-        to {
-            opacity: 1;
-            transform: translate(-50%, -50%);
-        }
-    }
-
-    @@media (max-width: 992px) {
-        .kanban-board {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-
-    @@media (max-width: 576px) {
-        .kanban-board {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>
 
 @code {
     private bool isLoading = true;
@@ -536,4 +433,28 @@ else
         <= 20 => "🟢",
         _ => "⚪"
     };
+
+    private async Task OnStatusSelectChanged(int taskId, ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var statusInt)) return;
+        var newStatus = (KanbanStatus)statusInt;
+
+        var task = allTasks.FirstOrDefault(t => t.Id == taskId);
+        if (task == null || task.KanbanStatus == newStatus) return;
+
+        if (newStatus == KanbanStatus.Recurrent)
+        {
+            pendingRecurrentTaskId = taskId;
+            pendingRecurrencePattern = task.RecurrencePattern ?? "Weekly";
+            showRecurrencePanel = true;
+            StateHasChanged();
+            return;
+        }
+
+        task.KanbanStatus = newStatus;
+        task.IsCompleted = newStatus == KanbanStatus.Done;
+        StateHasChanged();
+
+        await TaskService.UpdateKanbanStatusAsync(taskId, newStatus, currentUserId!);
+    }
 }

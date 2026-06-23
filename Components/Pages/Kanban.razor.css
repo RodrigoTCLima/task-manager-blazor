@@ -1,0 +1,121 @@
+.kanban-board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.kanban-col {
+    background: #f8f9fa;
+    border-radius: 10px;
+    overflow: hidden;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.kanban-col-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: white;
+    border-bottom: 1px solid #dee2e6;
+    font-size: .9rem;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.kanban-cards {
+    padding: 10px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 80px;
+}
+
+.kanban-card {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: grab;
+    transition: box-shadow 0.15s, opacity 0.15s, transform 0.15s;
+    user-select: none;
+}
+
+.kanban-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    transform: translateY(-1px);
+}
+
+.kanban-card.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+}
+
+.kanban-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 0;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+}
+
+.kanban-status-select {
+    font-size: .75rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    background: #f8f9fa;
+    color: #495057;
+    width: 100%;
+    margin-top: 8px;
+}
+
+.recurrence-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 1040;
+}
+
+.recurrence-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1050;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 380px;
+    max-width: calc(100vw - 24px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.2);
+    border-top: 4px solid #6f42c1;
+    animation: overlayIn 0.18s ease;
+}
+
+@keyframes overlayIn {
+    from { opacity: 0; transform: translate(-50%, -54%); }
+    to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@media (max-width: 992px) {
+    .kanban-board {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 576px) {
+    .kanban-board {
+        grid-template-columns: 1fr;
+    }
+
+    .kanban-col {
+        min-height: 120px;
+    }
+}

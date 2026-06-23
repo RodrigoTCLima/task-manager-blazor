@@ -13,17 +13,19 @@
 
 <PageTitle>Tarefas</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Gerenciador de Tarefas</h1>
-    <div class="d-flex gap-2">
-        <a href="/calendar@(orgId.HasValue ? $"?orgId={orgId}" : "")" class="btn btn-outline-secondary">
-            <i class="bi bi-calendar3"></i> Calendário
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="mb-0 fs-4">Gerenciador de Tarefas</h1>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="/calendar@(orgId.HasValue ? $"?orgId={orgId}" : "")" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-calendar3"></i>
+            <span class="d-none d-sm-inline"> Calendário</span>
         </a>
-        <button class="btn @(treeView ? "btn-secondary" : "btn-outline-secondary")"
+        <button class="btn @(treeView ? "btn-secondary" : "btn-outline-secondary") btn-sm"
                 @onclick="() => { treeView = !treeView; BuildTree(); }">
-            <i class="bi bi-diagram-3"></i> @(treeView ? "Lista" : "Árvore")
+            <i class="bi bi-diagram-3"></i>
+            <span class="d-none d-sm-inline"> </span>@(treeView ? "Lista" : "Árvore")
         </button>
-        <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success">
+        <a href="@(orgId.HasValue ? $"add-task?orgId={orgId}" : "add-task")" class="btn btn-success btn-sm">
             <i class="bi bi-plus-circle"></i> Nova Tarefa
         </a>
     </div>
@@ -43,10 +45,10 @@
         <h5 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h5>
     </div>
     <div class="card-body">
-        <div class="row g-3">
-            <div class="col-md-2">
-                <label class="form-label">Categoria</label>
-                <select class="form-select" @bind="filter.Category" @bind:after="ApplyFilters">
+        <div class="row g-2">
+            <div class="col-6 col-md-2">
+                <label class="form-label form-label-sm">Categoria</label>
+                <select class="form-select form-select-sm" @bind="filter.Category" @bind:after="ApplyFilters">
                     <option value="">Todas</option>
                     @foreach (var cat in availableCategories)
                     {
@@ -54,9 +56,9 @@
                     }
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Tag</label>
-                <select class="form-select" @bind="filter.Tag" @bind:after="ApplyFilters">
+            <div class="col-6 col-md-2">
+                <label class="form-label form-label-sm">Tag</label>
+                <select class="form-select form-select-sm" @bind="filter.Tag" @bind:after="ApplyFilters">
                     <option value="">Todas</option>
                     @foreach (var tag in availableTags)
                     {
@@ -64,63 +66,63 @@
                     }
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Status</label>
-                <select class="form-select" @bind="statusFilter" @bind:after="ApplyFilters">
+            <div class="col-6 col-md-2">
+                <label class="form-label form-label-sm">Status</label>
+                <select class="form-select form-select-sm" @bind="statusFilter" @bind:after="ApplyFilters">
                     <option value="">Todos</option>
                     <option value="pending">Pendentes</option>
                     <option value="completed">Concluídas</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Vencimento</label>
-                <select class="form-select" @bind="filter.DueDateRange" @bind:after="ApplyFilters">
+            <div class="col-6 col-md-2">
+                <label class="form-label form-label-sm">Vencimento</label>
+                <select class="form-select form-select-sm" @bind="filter.DueDateRange" @bind:after="ApplyFilters">
                     <option value="">Qualquer</option>
                     <option value="today">Hoje</option>
-                    <option value="week">Próximos 7 dias</option>
+                    <option value="week">7 dias</option>
                     <option value="overdue">Atrasadas</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Ordenar por</label>
-                <select class="form-select" @bind="filter.SortBy" @bind:after="ApplyFilters">
+            <div class="col-6 col-md-2">
+                <label class="form-label form-label-sm">Ordenar por</label>
+                <select class="form-select form-select-sm" @bind="filter.SortBy" @bind:after="ApplyFilters">
                     <option value="priority">Prioridade</option>
                     <option value="duedate">Vencimento</option>
                     <option value="created">Criação</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label">Prioridade máxima</label>
-                <input type="number" class="form-control" min="1" max="100" @bind="filter.MaxPriority"
+            <div class="col-6 col-md-2">
+                <label class="form-label form-label-sm">Prioridade máx.</label>
+                <input type="number" class="form-control form-control-sm" min="1" max="100" @bind="filter.MaxPriority"
                        @bind:after="ApplyFilters" />
             </div>
         </div>
 
-        <!-- Checkboxes + Limpar -->
-        <div class="row mt-3 text-center">
-            <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkAssigned" @bind="filterAssignedToMe"
+        <!-- Checkboxes -->
+        <div class="d-flex flex-wrap gap-3 mt-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="chkAssigned" @bind="filterAssignedToMe"
                        @bind:after="ApplyFilters" />
                 <label class="form-check-label" for="chkAssigned">👤 Atribuídas a mim</label>
             </div>
-            <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkReview" @bind="filterNeedsMyReview"
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="chkReview" @bind="filterNeedsMyReview"
                        @bind:after="ApplyFilters" />
-                <label class="form-check-label" for="chkReview">🔍 Aguardando minha revisão</label>
+                <label class="form-check-label" for="chkReview">🔍 Aguardando revisão</label>
             </div>
-            <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkMine" @bind="filterCreatedByMe"
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="chkMine" @bind="filterCreatedByMe"
                        @bind:after="ApplyFilters" />
                 <label class="form-check-label" for="chkMine">✏️ Criadas por mim</label>
             </div>
-            <div class="col">
-                <input class="form-check-input me-1" type="checkbox" id="chkBlocked" @bind="filterBlocked"
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="chkBlocked" @bind="filterBlocked"
                        @bind:after="ApplyFilters" />
                 <label class="form-check-label" for="chkBlocked">⛔ Bloqueadas</label>
             </div>
-            <div class="col-auto">
-                <button class="btn btn-outline-secondary btn-sm" @onclick="ClearFilters">✕ Limpar</button>
-            </div>
+            <button class="btn btn-outline-secondary btn-sm ms-auto" @onclick="ClearFilters">
+                ✕ Limpar
+            </button>
         </div>
 
         <div class="mt-2">
@@ -181,7 +183,7 @@ else
                            style="width:1.2rem;height:1.2rem;cursor:@((_blocked || !_canComplete) ? "not-allowed" : "pointer");" />
                     <h5 class="mb-0">
                         <a href="/task/@task.Id"
-                               class="text-decoration-none @(task.IsCompleted ? "text-decoration-line-through text-muted" : "text-dark")">
+                           class="text-decoration-none @(task.IsCompleted ? "text-decoration-line-through text-muted" : "text-dark")">
                             <span class="text-muted me-1 small">#@task.Id</span> @task.Title
                         </a>
                     </h5>
@@ -222,63 +224,68 @@ else
                 {
                     <p class="card-text">@task.Description</p>
                 }
-                <div class="row text-muted small">
-                    <div class="col-md-3"><strong>@task.Category</strong></div>
-                    <div class="col-md-3">
-                        Tags:
-                        @foreach (var tag in task.Tags.Take(3))
-                        {
-                            <span class="badge bg-secondary ms-1">@tag</span>
-                        }
-                        @if (task.Tags.Count > 3)
-                        {
-                            <span class="text-muted">+@(task.Tags.Count - 3)</span>
-                        }
-                    </div>
+                <div class="d-flex flex-wrap gap-2 text-muted small">
+                    @if (!string.IsNullOrEmpty(task.Category))
+                    {
+                        <span><strong>@task.Category</strong></span>
+                    }
+                    @if (task.Tags?.Any() == true)
+                    {
+                        <span>
+                            @foreach (var tag in task.Tags.Take(3))
+                            {
+                                <span class="badge bg-secondary ms-1">@tag</span>
+                            }
+                            @if (task.Tags.Count > 3)
+                            {
+                                <span class="text-muted">+@(task.Tags.Count - 3)</span>
+                            }
+                        </span>
+                    }
                     @if (task.DueDate.HasValue)
                     {
-                        <div class="col-md-3">
+                        <span>
                             Vence @task.DueDate.Value.ToLocalTime().ToString("dd/MM")
                             @if (task.DueDate.Value < DateTime.Now && !task.IsCompleted)
                             {
                                 <span class="badge bg-danger ms-1">Atrasada</span>
                             }
-                        </div>
+                        </span>
                     }
                     @if (task.AssignedToUserIds?.Any() == true)
                     {
-                        <div class="col-md-3">
-                            <span class="text-muted small">👤 </span>
-                            @foreach (var uid in task.AssignedToUserIds.Take(3))
+                        <span>
+                            👤
+                            @foreach (var uid in task.AssignedToUserIds.Take(2))
                             {
-                                <span class="badge bg-primary ms-1 small">@uid[..8]</span>
+                                <span class="badge bg-primary ms-1">@uid[..8]</span>
                             }
-                            @if (task.AssignedToUserIds.Count > 3)
+                            @if (task.AssignedToUserIds.Count > 2)
                             {
-                                <span class="badge bg-secondary ms-1 small">+@(task.AssignedToUserIds.Count - 3)</span>
+                                <span class="badge bg-secondary ms-1">+@(task.AssignedToUserIds.Count - 2)</span>
                             }
-                        </div>
+                        </span>
                     }
                     @if (task.NeedsReview > 0 && task.ReviewByUserId?.Any() == true)
                     {
                         var reviewed = task.ReviewedByUserId?.Count ?? 0;
                         var reviewComplete = reviewed >= task.NeedsReview;
-                        <div class="col-md-3">
+                        <span>
                             @if (reviewComplete)
                             {
-                                <span class="badge bg-success small">✅ Revisão completa</span>
+                                <span class="badge bg-success">✅ Revisão completa</span>
                             }
                             else if (task.ReviewByUserId.Contains(currentUserId ?? ""))
                             {
-                                <span class="badge bg-warning text-dark small">🔍 Sua revisão pendente</span>
+                                <span class="badge bg-warning text-dark">🔍 Sua revisão pendente</span>
                             }
                             else
                             {
-                                <span class="badge bg-info text-dark small">🔍 @reviewed/@task.NeedsReview revisões</span>
+                                <span class="badge bg-info text-dark">🔍 @reviewed/@task.NeedsReview revisões</span>
                             }
-                        </div>
+                        </span>
                     }
-                    <div class="col-md-3">Criada: @task.CreatedAt.ToString("dd/MM/yy HH:mm")</div>
+                    <span class="ms-auto">Criada: @task.CreatedAt.ToString("dd/MM/yy")</span>
                 </div>
                 @if (task.Comments?.Any() == true)
                 {
@@ -311,8 +318,8 @@ else
     <div class="d-flex justify-content-between align-items-center mt-3 mb-4">
         <div class="d-flex align-items-center gap-2">
             <small class="text-muted">Por página:</small>
-            <select class="form-select form-select-sm" style="width:80px;"
-                    @bind="pageSize" @bind:after="() => currentPage = 1">
+            <select class="form-select form-select-sm" style="width:80px;" @bind="pageSize"
+                    @bind:after="() => currentPage = 1">
                 <option value="10">10</option>
                 <option value="20">20</option>
                 <option value="50">50</option>
@@ -368,15 +375,21 @@ else
 }
 
 <style>
-    .tree-view { }
+    .tree-view {}
 
     .tree-node {
         border-left: 2px solid #dee2e6;
         padding-left: 8px;
         margin-bottom: 4px;
     }
-    .tree-node:last-child { margin-bottom: 0; }
-    .tree-node-done { opacity: 0.6; }
+
+    .tree-node:last-child {
+        margin-bottom: 0;
+    }
+
+    .tree-node-done {
+        opacity: 0.6;
+    }
 
     .tree-node-header {
         background: white;
@@ -385,7 +398,10 @@ else
         padding: 6px 10px;
         transition: background 0.1s;
     }
-    .tree-node-header:hover { background: #f8f9fa; }
+
+    .tree-node-header:hover {
+        background: #f8f9fa;
+    }
 
     .tree-toggle {
         color: #6c757d;
@@ -394,9 +410,16 @@ else
         width: 18px;
         flex-shrink: 0;
     }
-    .tree-toggle:hover { color: #0d6efd; }
 
-    .tree-leaf-spacer { display: inline-block; width: 18px; flex-shrink: 0; }
+    .tree-toggle:hover {
+        color: #0d6efd;
+    }
+
+    .tree-leaf-spacer {
+        display: inline-block;
+        width: 18px;
+        flex-shrink: 0;
+    }
 
     .tree-children {
         margin-top: 4px;
@@ -520,7 +543,7 @@ else
                 if (org != null && role.HasValue)
                 {
                     taskCanDelete[t.Id] = OrgService.CanDeleteTask(org, role.Value);
-                    taskCanEdit[t.Id]   = OrgService.CanEditTask(org, role.Value);
+                    taskCanEdit[t.Id] = OrgService.CanEditTask(org, role.Value);
                     // Assignees always can complete regardless of policy
                     var isAssignee = t.AssignedToUserIds?.Contains(currentUserId ?? "") == true;
                     taskCanComplete[t.Id] = isAssignee || OrgService.CanCompleteTask(org, role.Value);
@@ -533,8 +556,8 @@ else
             else
             {
                 // Task pessoal — só o autor edita/deleta; autor ou assignee conclui
-                taskCanEdit[t.Id]     = t.AuthorUserId == currentUserId;
-                taskCanDelete[t.Id]   = t.AuthorUserId == currentUserId;
+                taskCanEdit[t.Id] = t.AuthorUserId == currentUserId;
+                taskCanDelete[t.Id] = t.AuthorUserId == currentUserId;
                 taskCanComplete[t.Id] = t.AuthorUserId == currentUserId
                                         || (t.AssignedToUserIds?.Contains(currentUserId ?? "") == true);
             }
@@ -588,13 +611,11 @@ else
         var _canComplete = !taskCanComplete.TryGetValue(task.Id, out var _cp) || _cp;
         var _blocked = pendingDependencies.Contains(task.Id);
 
-        <div class="tree-node @(task.IsCompleted ? "tree-node-done" : "")"
-             style="margin-left: @(indent)px;">
+        <div class="tree-node @(task.IsCompleted ? "tree-node-done" : "")" style="margin-left: @(indent)px;">
             <div class="tree-node-header d-flex align-items-center gap-2">
                 @if (hasChildren)
                 {
-                    <button class="btn btn-link p-0 tree-toggle"
-                            @onclick="() => ToggleNode(task.Id)"
+                    <button class="btn btn-link p-0 tree-toggle" @onclick="() => ToggleNode(task.Id)"
                             @onclick:stopPropagation="true">
                         <i class="bi @(isCollapsed ? "bi-chevron-right" : "bi-chevron-down") small"></i>
                     </button>
@@ -604,10 +625,8 @@ else
                     <span class="tree-leaf-spacer"></span>
                 }
 
-                <input type="checkbox" class="form-check-input mt-0 flex-shrink-0"
-                       checked="@task.IsCompleted"
-                       disabled="@(_blocked || !_canComplete)"
-                       @onchange="() => ToggleComplete(task.Id)"
+                <input type="checkbox" class="form-check-input mt-0 flex-shrink-0" checked="@task.IsCompleted"
+                       disabled="@(_blocked || !_canComplete)" @onchange="() => ToggleComplete(task.Id)"
                        style="width:1.1rem;height:1.1rem;cursor:@((_blocked || !_canComplete) ? "not-allowed" : "pointer");" />
 
                 <a href="/task/@task.Id"
@@ -637,8 +656,7 @@ else
                 }
                 @if (!taskCanDelete.TryGetValue(task.Id, out var _canDelete) || _canDelete)
                 {
-                    <button class="btn btn-outline-danger btn-sm py-0 px-1"
-                            @onclick="() => ShowDeleteConfirm(task.Id)">
+                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => ShowDeleteConfirm(task.Id)">
                         <i class="bi bi-trash"></i>
                     </button>
                 }
