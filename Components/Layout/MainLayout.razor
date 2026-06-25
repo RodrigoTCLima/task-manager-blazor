@@ -1,7 +1,8 @@
 ﻿@using Microsoft.AspNetCore.Components.Authorization
 @inherits LayoutComponentBase
+@inject IJSRuntime JS
 
-<div class="page">
+<div class="page" id="app-root">
     <div class="sidebar">
         <NavMenu />
     </div>
@@ -32,7 +33,18 @@
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("themeManager.applyToRoot");
+            await JS.InvokeVoidAsync("themeManager.startWatcher");
+        }
+    }
+}

@@ -9,9 +9,37 @@
     <link rel="stylesheet" href="TaskManager.styles.css" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
     <HeadOutlet />
+    <script>
+        (function () {
+            var saved = localStorage.getItem('theme');
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var theme = saved || (prefersDark ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+
+        window.themeManager = {
+            isDark: function () {
+                var saved = localStorage.getItem('theme');
+                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                return saved === 'dark' || (!saved && prefersDark);
+            },
+            applyToRoot: function () {
+                var isDark = this.isDark();
+                document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+                return isDark;
+            },
+            toggle: function () {
+                var next = !this.isDark();
+                localStorage.setItem('theme', next ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
+                return next;
+            },
+            startWatcher: function () {}
+        };
+    </script>
 </head>
 <body>
-    <Routes />
+<Routes @rendermode="new InteractiveServerRenderMode(prerender: false)" />
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

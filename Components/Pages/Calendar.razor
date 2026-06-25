@@ -305,7 +305,7 @@ else
                             @if (!string.IsNullOrEmpty(t.Description))
                             {
                                 <span class="text-muted" style="font-size:.65rem;">@t.Description[..Math.Min(40,
-                                                                                            t.Description.Length)]@(t.Description.Length > 40 ? "…" : "")</span>
+                                                                                                                                t.Description.Length)]@(t.Description.Length > 40 ? "…" : "")</span>
                                 }
                             </div>
                         </div>
@@ -535,17 +535,121 @@ else
         }
 
         @@media (max-width: 768px) {
+            .calendar-weekdays {
+                font-size: 0.65rem;
+            }
+
             .calendar-cell {
-                min-height: 60px;
+                min-height: 50px;
+                padding: 3px;
+            }
+
+            .cell-date {
+                font-size: 0.7rem;
+                margin-bottom: 2px;
             }
 
             .task-pill {
-                font-size: 0.6rem;
+                font-size: 0.55rem;
+                padding: 1px 3px;
             }
 
             .day-panel {
                 width: 100%;
+                left: 0;
+                right: 0;
             }
+
+            .calendar-weekday {
+                padding: 4px 2px;
+                font-size: 0.65rem;
+            }
+
+            /* Esconde texto das pills no mobile, mostra só cor */
+            .task-pill:not(.task-pill-more) {
+                height: 6px;
+                padding: 0;
+                border-radius: 3px;
+                overflow: hidden;
+                text-indent: -9999px;
+            }
+
+            .task-pill-more {
+                font-size: 0.5rem;
+                padding: 0px 2px;
+                text-indent: 0;
+            }
+        }
+
+        /* Dark mode para o calendário */
+        html[data-theme="dark"] .calendar-grid {
+            border-color: var(--border-color);
+        }
+
+        html[data-theme="dark"] .calendar-weekdays {
+            background: var(--bg-muted);
+            border-color: var(--border-color);
+        }
+
+        html[data-theme="dark"] .calendar-weekday {
+            color: var(--text-muted);
+        }
+
+        html[data-theme="dark"] .calendar-cell {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+        }
+
+        html[data-theme="dark"] .calendar-cell:hover {
+            background: var(--bg-hover) !important;
+        }
+
+        html[data-theme="dark"] .calendar-cell.today {
+            background: #1c2d3d;
+        }
+
+        html[data-theme="dark"] .calendar-cell.other-month {
+            background: var(--bg-muted);
+        }
+
+        html[data-theme="dark"] .calendar-cell.other-month .cell-date {
+            color: var(--text-muted);
+        }
+
+        html[data-theme="dark"] .calendar-cell.weekend {
+            background: #1a1625;
+        }
+
+        html[data-theme="dark"] .cell-date {
+            color: var(--text-body);
+        }
+
+        html[data-theme="dark"] .agenda-day-header {
+            border-color: var(--border-color);
+        }
+
+        html[data-theme="dark"] .agenda-task {
+            background: var(--bg-card);
+            border-color: var(--border-color) !important;
+            color: var(--text-body);
+        }
+
+        html[data-theme="dark"] .agenda-task:hover {
+            background: var(--bg-hover);
+        }
+
+        html[data-theme="dark"] .day-panel {
+            background: var(--bg-card);
+            color: var(--text-body);
+        }
+
+        html[data-theme="dark"] .day-panel-header {
+            border-color: var(--border-color);
+        }
+
+        html[data-theme="dark"] .panel-task-item {
+            background: var(--bg-muted) !important;
+            border-color: var(--border-color) !important;
         }
     </style>
 
@@ -619,13 +723,14 @@ else
         {
             orgId = null;
             orgName = null;
-            Nav.NavigateTo("/calendar");
         }
         else
         {
-            var parsedId = int.Parse(selectedOrgId);
-            Nav.NavigateTo($"/calendar?orgId={parsedId}");
+            orgId = int.Parse(selectedOrgId);
+            var org = await OrgService.GetOrganizationByIdAsync(orgId.Value);
+            orgName = org?.Name;
         }
+        await LoadDataAsync();
     }
 
     private void ApplyFilters()
@@ -865,9 +970,21 @@ else
 
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        // Reload when navigating back to /calendar
         if (e.Location.Contains("/calendar"))
         {
+            // Relê orgId da URL
+            var uri = new Uri(e.Location);
+            var qs = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            if (qs.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
+            {
+                orgId = parsedOrgId;
+                selectedOrgId = parsedOrgId.ToString();
+            }
+            else
+            {
+                orgId = null;
+                selectedOrgId = "";
+            }
             await LoadDataAsync();
             await InvokeAsync(StateHasChanged);
         }

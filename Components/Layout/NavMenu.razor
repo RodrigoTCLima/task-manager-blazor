@@ -1,6 +1,7 @@
 ﻿@using TaskManager.Services
 @using TaskManager.Models
 @implements IDisposable
+@inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject TaskService TaskService
 @inject OrganizationService OrgService
@@ -12,21 +13,26 @@
     <a class="navbar-brand fw-semibold" href="">
         <i class="bi bi-check2-square me-2"></i>TaskManager
     </a>
-    <a href="/notifications" class="btn btn-link p-0 position-relative text-body nav-bell">
-        <i class="bi bi-bell fs-5"></i>
-        @if (unreadCount > 0)
-        {
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                  style="font-size:0.6rem;">
-                @(unreadCount > 99 ? "99+" : unreadCount)
-            </span>
-        }
-    </a>
+    <div class="d-flex align-items-center nav-bell">
+        <button class="btn btn-link p-0 text-body me-2" @onclick="ToggleTheme" title="Alternar tema">
+            <i class="bi @(isDark ? "bi-sun" : "bi-moon") fs-5"></i>
+        </button>
+        <a href="/notifications" class="btn btn-link p-0 position-relative text-body">
+            <i class="bi bi-bell fs-5"></i>
+            @if (unreadCount > 0)
+            {
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                      style="font-size:0.6rem;">
+                    @(unreadCount > 99 ? "99+" : unreadCount)
+                </span>
+            }
+        </a>
+    </div>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('#navToggle').click()">
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
     <nav class="nav flex-column px-2 pt-2">
 
         <div class="nav-item">
@@ -60,8 +66,8 @@
         </div>
 
         <div class="nav-item">
-            <div class="nav-link nav-link-accordion @(orgsExpanded ? "active-accordion" : "")"
-                 @onclick="ToggleOrgs" style="cursor:pointer;">
+            <div class="nav-link nav-link-accordion @(orgsExpanded ? "active-accordion" : "")" @onclick="ToggleOrgs"
+                 style="cursor:pointer;">
                 <i class="bi bi-building"></i>
                 <span class="flex-fill">Organizações</span>
                 <i class="bi @(orgsExpanded ? "bi-chevron-up" : "bi-chevron-down") small"></i>
@@ -77,9 +83,7 @@
                     {
                         @foreach (var item in userOrgs)
                         {
-                            <NavLink class="nav-link nav-link-sub"
-                                     href="@("tasks?orgId=" + item.Org.Id)"
-                                     @onclick:stopPropagation>
+                            <NavLink class="nav-link nav-link-sub" href="@("tasks?orgId=" + item.Org.Id)" @onclick:stopPropagation>
                                 <i class="bi bi-people"></i>
                                 <span class="org-name">@item.Org.Name</span>
                                 @if (item.PendingCount > 0)
@@ -101,15 +105,22 @@
     private bool orgsExpanded = false;
     private string? userId;
     private int unreadCount = 0;
+    private bool isDark = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Nav.LocationChanged += OnLocationChanged;
-        await LoadData();
+        if (firstRender)
+        {
+            isDark = await JS.InvokeAsync<bool>("themeManager.applyToRoot");
+            Nav.LocationChanged += OnLocationChanged;
+            await LoadData();
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
+        isDark = await JS.InvokeAsync<bool>("themeManager.applyToRoot");
         await LoadData();
         await InvokeAsync(StateHasChanged);
     }
@@ -140,4 +151,9 @@
     }
 
     private void ToggleOrgs() => orgsExpanded = !orgsExpanded;
+
+    private async Task ToggleTheme()
+    {
+        isDark = await JS.InvokeAsync<bool>("themeManager.toggle");
+    }
 }

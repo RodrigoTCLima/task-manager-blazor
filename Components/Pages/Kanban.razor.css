@@ -119,3 +119,39 @@
         min-height: 120px;
     }
 }
+
+html[data-theme="dark"] .kanban-col {
+    background: var(--bg-muted);
+}
+
+html[data-theme="dark"] .kanban-col-header {
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-body);
+}
+
+html[data-theme="dark"] .kanban-card {
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-body);
+}
+
+html[data-theme="dark"] .kanban-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,.3);
+}
+
+html[data-theme="dark"] .kanban-empty {
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
+html[data-theme="dark"] .kanban-status-select {
+    background: var(--bg-input);
+    border-color: var(--border-input);
+    color: var(--text-body);
+}
+
+html[data-theme="dark"] .recurrence-overlay {
+    background: var(--bg-card);
+    color: var(--text-body);
+}

@@ -1,3 +1,4 @@
+/* ── TOGGLER ─────────────────────────────────────────────────────────────── */
 .navbar-toggler {
     appearance: none;
     cursor: pointer;
@@ -6,27 +7,40 @@
     position: absolute;
     top: 0.5rem;
     right: 1rem;
-    border: 1px solid rgba(0,0,0,0.15);
+    border: 1px solid var(--border-color, rgba(0,0,0,0.15));
     border-radius: 4px;
-    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%280,0,0,0.6%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem transparent;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%280,0,0,0.6%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 1.75rem;
+    background-color: transparent;
+}
+
+html[data-theme="dark"] .navbar-toggler {
+    border-color: var(--border-color, #30363d);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255,255,255,0.8%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+    filter: none;
 }
 
 .navbar-toggler:checked {
-    background-color: rgba(0,0,0,0.05);
+    background-color: var(--bg-hover, rgba(0,0,0,0.05));
 }
 
+/* ── TOP ROW ──────────────────────────────────────────────────────────────── */
 .top-row {
     min-height: 3.5rem;
-    background-color: #e9ecef;
-    border-bottom: 1px solid #dee2e6;
+    background-color: var(--bg-toprow, #e9ecef);
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+    transition: background-color 0.2s ease;
 }
 
 .navbar-brand {
     font-size: 1.1rem;
-    color: #212529 !important;
+    color: var(--text-brand, #212529) !important;
     letter-spacing: 0.01em;
 }
 
+/* ── NAV ITEMS ────────────────────────────────────────────────────────────── */
 .nav-item {
     font-size: 0.9rem;
 }
@@ -36,7 +50,7 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    color: #495057;
+    color: var(--text-nav, #495057);
     border-radius: 6px;
     padding: 0.5rem 0.75rem;
     transition: background 0.15s ease, color 0.15s ease;
@@ -45,25 +59,26 @@
 
 .nav-item ::deep .nav-link:hover,
 .nav-link-accordion:hover {
-    background-color: #dee2e6;
-    color: #212529;
+    background-color: var(--bg-hover, #dee2e6);
+    color: var(--text-body, #212529);
 }
 
 .nav-item ::deep a.active {
-    background-color: #ced4da;
-    color: #212529;
+    background-color: var(--bg-active, #ced4da);
+    color: var(--text-body, #212529);
     font-weight: 500;
 }
 
 .active-accordion {
-    background-color: #dee2e6;
-    color: #212529;
+    background-color: var(--bg-hover, #dee2e6);
+    color: var(--text-body, #212529);
     font-weight: 500;
 }
 
+/* ── ORG SUBMENU ──────────────────────────────────────────────────────────── */
 .org-submenu {
     margin-left: 0.5rem;
-    border-left: 2px solid #dee2e6;
+    border-left: 2px solid var(--border-color, #dee2e6);
     padding-left: 0.5rem;
     margin-top: 0.15rem;
     margin-bottom: 0.15rem;
@@ -73,7 +88,7 @@
     display: flex !important;
     align-items: center;
     gap: 0.6rem;
-    color: #495057 !important;
+    color: var(--text-nav, #495057) !important;
     border-radius: 6px;
     padding: 0.4rem 0.6rem !important;
     font-size: 0.85rem;
@@ -82,13 +97,13 @@
 }
 
 .nav-link-sub:hover {
-    background-color: #dee2e6;
-    color: #212529 !important;
+    background-color: var(--bg-hover, #dee2e6);
+    color: var(--text-body, #212529) !important;
 }
 
 .nav-link-sub.active {
-    background-color: #ced4da !important;
-    color: #212529 !important;
+    background-color: var(--bg-active, #ced4da) !important;
+    color: var(--text-body, #212529) !important;
     font-weight: 500;
 }
 
@@ -101,21 +116,34 @@
 
 .org-badge {
     font-size: 0.7rem;
-    background: #ced4da;
+    background: var(--bg-active, #ced4da);
     border-radius: 10px;
     padding: 0.1rem 0.45rem;
-    color: #495057;
+    color: var(--text-nav, #495057);
 }
 
+/* ── NAV SCROLLABLE ───────────────────────────────────────────────────────── */
 .nav-scrollable {
     display: none;
-    background-color: #f1f3f5;
+    background-color: var(--bg-sidebar, #f1f3f5);
+    transition: background-color 0.2s ease;
 }
 
 .navbar-toggler:checked ~ .nav-scrollable {
     display: block;
 }
 
+/* ── BELL + TOGGLE ────────────────────────────────────────────────────────── */
+.nav-bell {
+    margin-left: auto;
+    margin-right: 4.5rem;
+}
+
+.nav-bell .btn-link {
+    color: var(--text-brand, #212529) !important;
+}
+
+/* ── RESPONSIVE ───────────────────────────────────────────────────────────── */
 @media (min-width: 641px) {
     .navbar-toggler {
         display: none;
@@ -126,14 +154,7 @@
         height: calc(100vh - 3.5rem);
         overflow-y: auto;
     }
-}
 
-.nav-bell {
-    margin-left: auto;
-    margin-right: 4.5rem;
-}
-
-@media (min-width: 641px) {
     .nav-bell {
         margin-right: 1rem;
     }
