@@ -31,13 +31,19 @@
     </div>
 </div>
 
-@if (orgId.HasValue)
-{
-    <div class="alert alert-primary d-flex justify-content-between align-items-center py-2 mb-3">
-        <span>🏢 Exibindo tasks de <strong>@orgName</strong></span>
-        <a href="/org/@orgId" class="btn btn-sm btn-outline-primary">Ver Painel da Org</a>
-    </div>
-}
+<div class="d-flex align-items-center gap-2 mb-3">
+    <select class="form-select form-select-sm" style="width:auto;" @bind="selectedOrgId" @bind:after="OnOrgChanged">
+        <option value="">👤 Pessoal</option>
+        @foreach (var org in availableOrgs)
+        {
+            <option value="@org.Id">🏢 @org.Name</option>
+        }
+    </select>
+    @if (orgId.HasValue)
+    {
+        <a href="/org/@orgId" class="btn btn-sm btn-outline-primary">Ver Painel</a>
+    }
+</div>
 
 <!-- FILTROS -->
 <div class="card mb-4">
@@ -428,6 +434,8 @@ else
 </style>
 
 @code {
+    private List<Organization> availableOrgs = new();
+    private string selectedOrgId = "";
     private List<TaskItem> allTasks = new();
     private List<TaskItem> filteredTasks = new();
     private List<string> availableCategories = new();
@@ -473,7 +481,7 @@ else
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         currentUserId = authState.User.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
+        availableOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId!);
         await LoadFromUrl();
         isLoading = false;
     }
@@ -488,7 +496,7 @@ else
             newOrgId = parsed;
 
         orgId = newOrgId;
-
+        selectedOrgId = orgId.HasValue ? orgId.Value.ToString() : "";
         if (orgId.HasValue)
         {
             var org = await OrgService.GetOrganizationByIdAsync(orgId.Value);
@@ -514,6 +522,13 @@ else
         await LoadPendingDependencies();
         await LoadTaskPermissions();
         ApplyFilters();
+    }
+    private void OnOrgChanged()
+    {
+        if (string.IsNullOrEmpty(selectedOrgId))
+            Nav.NavigateTo("/tasks");
+        else
+            Nav.NavigateTo($"/tasks?orgId={selectedOrgId}");
     }
 
     private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
