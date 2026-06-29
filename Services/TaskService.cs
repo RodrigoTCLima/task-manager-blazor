@@ -218,13 +218,13 @@ public class TaskService
         if (task == null) return;
 
         var isAssignee = task.AssignedToUserIds?.Contains(completedByUserId) == true;
-        var isAuthor   = task.AuthorUserId == completedByUserId;
+        var isAuthor = task.AuthorUserId == completedByUserId;
 
         if (!isAssignee && !isAuthor)
         {
             if (task.OrganizationId.HasValue)
             {
-                var org  = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
+                var org = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
                 var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, completedByUserId);
                 if (org == null || !role.HasValue || !OrgService.CanCompleteTask(org, role.Value))
                     return;
@@ -238,6 +238,13 @@ public class TaskService
         task.IsCompleted = !task.IsCompleted;
         await _context.SaveChangesAsync();
 
+        // Se task recorrente foi marcada como CONCLUÍDA, criar próxima instância
+        if (task.IsCompleted && task.IsRecurrent && !string.IsNullOrEmpty(task.RecurrencePattern))
+        {
+            await CreateNextRecurrentInstanceAsync(task);
+        }
+
+        // Notifica os outros responsáveis quando concluída
         if (task.IsCompleted && task.AssignedToUserIds != null)
         {
             var others = task.AssignedToUserIds
@@ -254,6 +261,65 @@ public class TaskService
                 );
             }
         }
+    }
+
+    private async Task CreateNextRecurrentInstanceAsync(TaskItem original)
+    {
+        if (!original.DueDate.HasValue) return;
+
+        // Calcula a próxima data baseada no padrão
+        var nextDate = original.RecurrencePattern switch
+        {
+            "Daily" => original.DueDate.Value.AddDays(1),
+            "Weekly" => original.DueDate.Value.AddDays(7),
+            "Monthly" => original.DueDate.Value.AddMonths(1),
+            _ => (DateTime?)null
+        };
+
+        if (nextDate == null) return;
+
+        // Verifica se já existe uma instância para essa data (evita duplicatas)
+        using var _context = CreateContext();
+        var parentId = original.ParentTaskId ?? original.Id;
+        var alreadyExists = await _context.Tasks.AnyAsync(t =>
+            (t.ParentTaskId == parentId || t.Id == parentId) &&
+            t.DueDate.HasValue &&
+            t.DueDate.Value.Date == nextDate.Value.Date &&
+            !t.IsCompleted);
+
+        if (alreadyExists) return;
+
+        var next = new TaskItem
+        {
+            Title = original.Title,
+            Description = original.Description,
+            Priority = original.Priority,
+            Category = original.Category,
+            Tags = new List<string>(original.Tags ?? new()),
+            AuthorUserId = original.AuthorUserId,
+            AssignedToUserIds = new List<string>(original.AssignedToUserIds ?? new()),
+            OrganizationId = original.OrganizationId,
+            IsRecurrent = true,
+            RecurrencePattern = original.RecurrencePattern,
+            IsRecurrentInstance = true,
+            ParentTaskId = parentId,
+            DueDate = nextDate,
+            KanbanStatus = KanbanStatus.Recurrent,
+            CreatedAt = DateTime.UtcNow,
+            ReviewByUserId = new List<string>(original.ReviewByUserId ?? new()),
+            NeedsReview = original.NeedsReview,
+        };
+
+        _context.Tasks.Add(next);
+        await _context.SaveChangesAsync();
+
+        // Notifica o autor sobre a nova instância
+        await _notificationService.CreateAsync(
+            userId: original.AuthorUserId,
+            message: $"Nova ocorrência de \"{original.Title}\" criada para {nextDate.Value.ToLocalTime():dd/MM/yyyy}",
+            type: NotificationType.TaskCompleted,
+            link: $"/task/{next.Id}"
+        );
     }
 
     public async Task<bool> HasPendingDependenciesAsync(int taskId)
@@ -360,12 +426,12 @@ public class TaskService
 
         if (task.OrganizationId.HasValue)
         {
-            var org  = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
+            var org = await OrgService.GetOrganizationByIdAsync(task.OrganizationId.Value);
             var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, requestingUserId);
             if (org == null || !role.HasValue) return;
 
             var isAssignee = task.AssignedToUserIds?.Contains(requestingUserId) == true;
-            var isAuthor   = task.AuthorUserId == requestingUserId;
+            var isAuthor = task.AuthorUserId == requestingUserId;
 
             if (newStatus == KanbanStatus.Done)
             {

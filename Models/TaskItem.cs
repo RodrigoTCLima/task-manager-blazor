@@ -8,10 +8,10 @@ namespace TaskManager.Models;
 
 public enum KanbanStatus
 {
-    Todo        = 0, // A fazer (padrão — valor 0 no banco)
-    InProgress  = 1, // Em andamento
-    Done        = 2, // Concluída
-    Recurrent   = 3  // Tarefas recorrentes
+    Todo = 0, // A fazer (padrão — valor 0 no banco)
+    InProgress = 1, // Em andamento
+    Done = 2, // Concluída
+    Recurrent = 3  // Tarefas recorrentes
 }
 
 public class TaskItem
@@ -52,4 +52,11 @@ public class TaskItem
     public List<string>? ReviewByUserId { get; set; }
     public List<string>? ReviewedByUserId { get; set; }
     public List<Comment>? Comments { get; set; }
+
+
+    /// <summary>ID da task original da série recorrente (null se for a original)</summary>
+    public int? ParentTaskId { get; set; }
+
+    /// <summary>True se esta task foi gerada automaticamente por recorrência</summary>
+    public bool IsRecurrentInstance { get; set; } = false;
 }
