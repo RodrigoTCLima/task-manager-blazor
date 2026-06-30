@@ -305,7 +305,7 @@ else
                             @if (!string.IsNullOrEmpty(t.Description))
                             {
                                 <span class="text-muted" style="font-size:.65rem;">@t.Description[..Math.Min(40,
-                                                                                                                                                                    t.Description.Length)]@(t.Description.Length > 40 ? "…" : "")</span>
+                                                                                                                                                                                                                                            t.Description.Length)]@(t.Description.Length > 40 ? "…" : "")</span>
                                 }
                             </div>
                         </div>
@@ -814,18 +814,19 @@ else
             if (t.DueDate?.ToLocalTime().Date == date)
                 return true;
 
-            // Recorrentes virtuais — só mostra se não há instância real para essa data
-            if (t.IsRecurrent && !t.IsRecurrentInstance && t.DueDate.HasValue && string.IsNullOrEmpty(t.RecurrencePattern) == false)
+            // Recorrentes virtuais — geradas pela original OU pela última instância pendente
+            if (t.IsRecurrent && t.DueDate.HasValue && !string.IsNullOrEmpty(t.RecurrencePattern))
             {
+                if (t.IsCompleted) return false;
+
                 var origin = t.DueDate.Value.ToLocalTime().Date;
-                if (date < origin) return false;
-                if (date == origin) return false; // já foi capturado pelo DueDate exato acima
+                if (date <= origin) return false;
 
                 // Verifica se já existe instância real para essa data
-                var parentId = t.Id;
+                var parentId = t.ParentTaskId ?? t.Id;
                 var hasRealInstance = filteredTasks.Any(r =>
                     r.IsRecurrentInstance &&
-                    r.ParentTaskId == parentId &&
+                    (r.ParentTaskId == parentId || r.Id == parentId) &&
                     r.DueDate?.ToLocalTime().Date == date);
 
                 if (hasRealInstance) return false;
