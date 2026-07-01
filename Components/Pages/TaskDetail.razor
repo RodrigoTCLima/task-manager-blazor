@@ -7,10 +7,8 @@
 @inject OrganizationService OrgService
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthStateProvider
-@inject UserManager<IdentityUser> UserManager
-
+@inject UserManager<ApplicationUser> UserManager
 @rendermode InteractiveServer
-
 
 <PageTitle>Detalhes da Tarefa</PageTitle>
 
@@ -52,7 +50,8 @@ else
                 }
                 else if (!canComplete)
                 {
-                    <span style="font-size:1.2rem; cursor:not-allowed;" title="Você não tem permissão para concluir esta tarefa">🔒</span>
+                    <span style="font-size:1.2rem; cursor:not-allowed;"
+                          title="Você não tem permissão para concluir esta tarefa">🔒</span>
                     <label class="form-check-label fw-bold ms-1 text-muted">
                         @(task.IsCompleted ? "Concluída" : "Pendente")
                     </label>
@@ -114,7 +113,7 @@ else
                     </li>
                     <li class="list-group-item d-flex justify-content-between">
                         <span>Vencimento</span>
-                        <span>@(task.DueDate.HasValue ? task.DueDate.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") :
+                        <span>@(task.DueDate.HasValue? task.DueDate.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") :
                     "—")</span>
                         </li>
                         @if (task.HasAlarm && task.AlarmTime.HasValue)
@@ -165,7 +164,7 @@ else
                                 {
                                     <li class="list-group-item">
                                         <div class="d-flex justify-content-between">
-                                            <strong>@comment.AuthorUserId</strong>
+                                            <strong>@(commentAuthorNames.TryGetValue(comment.AuthorUserId, out var cname) ? cname : comment.AuthorUserId[..8])</strong>
                                             <small class="text-muted">@comment.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
                                         </div>
                                         <p class="mb-0 mt-1">@comment.Content</p>
@@ -205,7 +204,7 @@ else
                                             var depLinkTooltip = !string.IsNullOrWhiteSpace(dep.Description) ? dep.Description : dep.Title;
                                         }
                                         <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")"
-                                               title="@depLinkTooltip">
+                                           title="@depLinkTooltip">
                                             <span class="badge bg-secondary me-1" title="@depTooltip">
                                                 #@dep.Id
                                             </span>@dep.Title
@@ -336,7 +335,7 @@ else
     private bool canEdit = true;
     private bool canComplete = true;
     private bool canDelete = true;
-
+    private Dictionary<string, string> commentAuthorNames = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -356,11 +355,24 @@ else
             foreach (var uid in task.ReviewByUserId)
             {
                 var user = await UserManager.FindByIdAsync(uid);
-                reviewerNames[uid] = user?.UserName ?? uid[..8];
+                reviewerNames[uid] = user?.GetDisplayName() ?? uid[..8];
             }
         }
 
         dependencies = await TaskService.GetDependenciesAsync(Id);
+        if (task.Comments?.Any() == true)
+        {
+            foreach (var uid in task.Comments.Select(c => c.AuthorUserId).Distinct())
+            {
+                if (!commentAuthorNames.ContainsKey(uid))
+                {
+                    var user = await UserManager.FindByIdAsync(uid);
+                    commentAuthorNames[uid] = user != null
+                        ? $"{user.GetDisplayName()} ({user.Email})"
+                        : uid[..8];
+                }
+            }
+        }
         hasPendingDeps = await TaskService.HasPendingDependenciesAsync(Id);
 
         if (task != null && currentUserId != null)
@@ -375,7 +387,7 @@ else
                 var role = await OrgService.GetUserRoleAsync(task.OrganizationId.Value, currentUserId);
                 if (org != null && role.HasValue)
                 {
-                    canEdit   = OrgService.CanEditTask(org, role.Value);
+                    canEdit = OrgService.CanEditTask(org, role.Value);
                     canDelete = OrgService.CanDeleteTask(org, role.Value);
                     // Assignees always can complete regardless of policy
                     var isAssignee = task.AssignedToUserIds?.Contains(currentUserId) == true;
@@ -390,10 +402,10 @@ else
             else
             {
                 // Task pessoal — só o autor pode editar/concluir/deletar
-                canEdit     = task.AuthorUserId == currentUserId;
+                canEdit = task.AuthorUserId == currentUserId;
                 canComplete = task.AuthorUserId == currentUserId
                               || (task.AssignedToUserIds?.Contains(currentUserId) == true);
-                canDelete   = task.AuthorUserId == currentUserId;
+                canDelete = task.AuthorUserId == currentUserId;
             }
         }
     }

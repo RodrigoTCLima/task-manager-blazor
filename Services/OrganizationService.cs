@@ -8,10 +8,10 @@ namespace TaskManager.Services;
 public class OrganizationService
 {
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
-    private readonly UserManager<IdentityUser> _userManager;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly NotificationService _notificationService;
 
-    public OrganizationService(IDbContextFactory<AppDbContext> contextFactory, UserManager<IdentityUser> userManager, NotificationService notificationService)
+    public OrganizationService(IDbContextFactory<AppDbContext> contextFactory, UserManager<ApplicationUser> userManager, NotificationService notificationService)
     {
         _contextFactory = contextFactory;
         _userManager = userManager;
@@ -354,9 +354,9 @@ public class OrganizationService
     {
         return org.KanbanViewPolicy switch
         {
-            KanbanViewPolicy.OwnerOnly      => role == MemberRole.Owner,
+            KanbanViewPolicy.OwnerOnly => role == MemberRole.Owner,
             KanbanViewPolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
-            KanbanViewPolicy.AllMembers     => true,
+            KanbanViewPolicy.AllMembers => true,
             _ => false
         };
     }
@@ -365,17 +365,18 @@ public class OrganizationService
     {
         return org.KanbanViewOthersPolicy switch
         {
-            KanbanViewOthersPolicy.OwnerOnly      => role == MemberRole.Owner,
+            KanbanViewOthersPolicy.OwnerOnly => role == MemberRole.Owner,
             KanbanViewOthersPolicy.AdminsAndOwner => role is MemberRole.Owner or MemberRole.Admin,
-            KanbanViewOthersPolicy.AllMembers     => true,
+            KanbanViewOthersPolicy.AllMembers => true,
             _ => false
         };
     }
 
-    public async Task<List<IdentityUser>> SearchUsersAsync(string query)
+    public async Task<List<ApplicationUser>> SearchUsersAsync(string query)
     {
         return await _userManager.Users
-            .Where(u => u.UserName != null && u.UserName.Contains(query))
+            .Where(u => (u.UserName != null && u.UserName.Contains(query)) ||
+                        (u.DisplayName != null && u.DisplayName.Contains(query)))
             .Take(10)
             .ToListAsync();
     }

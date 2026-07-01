@@ -37,10 +37,8 @@ else
 }
 
 // ── IDENTITY ──────────────────────────────────────────────────────────────────
-builder.Services.AddDefaultIdentity<IdentityUser>(options =>
+builder.Services.AddDefaultIdentity<TaskManager.Models.ApplicationUser>(options =>
 {
-    // Em produção, exige confirmação de email antes de permitir login
-    // Em dev, fica desabilitado pois não há servidor de email configurado
     options.SignIn.RequireConfirmedAccount = !isDev;
     options.SignIn.RequireConfirmedEmail = !isDev;
     options.Password.RequireDigit = true;

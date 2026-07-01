@@ -1,7 +1,6 @@
 @page "/org/{OrgId:int}"
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Identity
 @using TaskManager.Models
 @using TaskManager.Services
 @inject OrganizationService OrgService
@@ -39,7 +38,8 @@ else
                 </div>
                 <!-- Políticas de permissão -->
                 <div class="mt-3">
-                    <p class="text-muted small fw-semibold text-uppercase mb-2" style="font-size:0.7rem;letter-spacing:.05em;">Permissões</p>
+                    <p class="text-muted small fw-semibold text-uppercase mb-2"
+                       style="font-size:0.7rem;letter-spacing:.05em;">Permissões</p>
                     <div class="d-flex flex-wrap gap-2">
                         <span class="badge bg-light text-dark border" title="Quem pode criar tarefas">
                             ➕ Criar: @PolicyLabel(org.TaskCreationPolicy.ToString())
@@ -136,15 +136,13 @@ else
                                                     </button>
                                                 }
                                                 <button class="btn btn-xs" style="border: 1px solid #ffc107; color: #000; background: #fff;"
-                                                    onmouseover="this.style.background='#ffc107'"
-                                                    onmouseout="this.style.background='#fff'"
-                                                    @onclick="() => TransferOwnership(member.UserId)">
+                                                        onmouseover="this.style.background='#ffc107'" onmouseout="this.style.background='#fff'"
+                                                        @onclick="() => TransferOwnership(member.UserId)">
                                                     👑 Owner
                                                 </button>
 
                                             }
-                                            <button class="btn btn-xs btn-outline-danger"
-                                                    @onclick="() => KickMember(member.UserId)">
+                                            <button class="btn btn-xs btn-outline-danger" @onclick="() => KickMember(member.UserId)">
                                                 Remover
                                             </button>
                                         </div>
@@ -162,8 +160,8 @@ else
         {
             <h5 class="mb-3">📨 Convidar Usuário</h5>
             <div class="input-group mb-2" style="max-width: 500px;">
-                <input type="text" class="form-control" placeholder="Buscar por username..."
-                       @bind="inviteSearch" @bind:event="oninput" @onkeyup="SearchUsers" />
+                <input type="text" class="form-control" placeholder="Buscar por username..." @bind="inviteSearch"
+                       @bind:event="oninput" @onkeyup="SearchUsers" />
             </div>
             @if (userResults.Any())
             {
@@ -172,7 +170,7 @@ else
                     {
                         var alreadyMember = org.Members.Any(m => m.UserId == user.Id);
                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            @user.UserName
+                            @user.GetDisplayName()
                             @if (alreadyMember)
                             {
                                 <span class="badge bg-success">Já é membro</span>
@@ -183,8 +181,7 @@ else
                             }
                             else
                             {
-                                <button class="btn btn-sm btn-primary"
-                                        @onclick="() => InviteUser(user.Id, user.UserName!)">
+                                <button class="btn btn-sm btn-primary" @onclick="() => InviteUser(user.Id, user.GetDisplayName())">
                                     Convidar
                                 </button>
                             }
@@ -203,12 +200,10 @@ else
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             @req.TargetUserName
                             <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-success"
-                                        @onclick="() => ResolveRequest(req.Id, true)">
+                                <button class="btn btn-sm btn-success" @onclick="() => ResolveRequest(req.Id, true)">
                                     ✅ Aceitar
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger"
-                                        @onclick="() => ResolveRequest(req.Id, false)">
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => ResolveRequest(req.Id, false)">
                                     ❌ Recusar
                                 </button>
                             </div>
@@ -229,7 +224,7 @@ else
     private string? currentUserName;
 
     private string inviteSearch = "";
-    private List<IdentityUser> userResults = new();
+    private List<ApplicationUser> userResults = new();
     private HashSet<string> invitedIds = new();
 
     private List<OrganizationInvite> pendingRequests = new();
@@ -321,9 +316,9 @@ else
 
     private string PolicyLabel(string policy) => policy switch
     {
-        "OwnerOnly"      => "Somente Owner",
+        "OwnerOnly" => "Somente Owner",
         "AdminsAndOwner" => "Admins e Owner",
-        "AllMembers"     => "Todos",
-        _                => policy
+        "AllMembers" => "Todos",
+        _ => policy
     };
 }
