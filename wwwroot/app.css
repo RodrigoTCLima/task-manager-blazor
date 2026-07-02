@@ -185,5 +185,47 @@ html[data-theme="dark"] .dropdown-item:hover { background-color: var(--bg-hover)
 html[data-theme="dark"] .navbar-toggler { border-color: var(--border-color); filter: invert(1); }
 html[data-theme="dark"] .top-row .btn-outline-secondary,
 html[data-theme="dark"] .top-row .btn-outline-danger { color: var(--text-body); border-color: var(--border-color); }
-html[data-theme="dark"] table { color: var(--text-body); }
-html[data-theme="dark"] .table { --bs-table-bg: var(--bg-card); --bs-table-border-color: var(--border-color); color: var(--text-body); }
+/* ── TABLE DARK ───────────────────────────────────────────────────────────── */
+html[data-theme="dark"] table {
+    color: var(--text-body);
+}
+
+html[data-theme="dark"] .table {
+    --bs-table-bg: var(--bg-card);
+    --bs-table-border-color: var(--border-color);
+    color: var(--text-body);
+}
+
+html[data-theme="dark"] .table td,
+html[data-theme="dark"] .table th {
+    background-color: var(--bg-card) !important;
+    color: var(--text-body) !important;
+    border-color: var(--border-color) !important;
+}
+
+html[data-theme="dark"] .table thead th,
+html[data-theme="dark"] .table thead td {
+    background-color: var(--bg-toprow) !important;
+    color: var(--text-nav) !important;
+    border-color: var(--border-color) !important;
+    font-weight: 600;
+}
+
+html[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: var(--bg-muted) !important;
+    color: var(--text-body) !important;
+}
+
+html[data-theme="dark"] .table-hover > tbody > tr:hover > * {
+    background-color: var(--bg-hover) !important;
+    color: var(--text-body) !important;
+}
+html[data-theme="dark"] .list-group-item {
+    background-color: var(--bg-card);
+    color: var(--text-body);
+    border-color: var(--border-color);
+}
+
+html[data-theme="dark"] .list-group-item:hover {
+    background-color: var(--bg-hover);
+}

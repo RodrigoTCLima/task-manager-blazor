@@ -3,6 +3,8 @@
 @using Microsoft.AspNetCore.Authorization
 @using TaskManager.Models
 @using TaskManager.Services
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
 @inject OrganizationService OrgService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
@@ -108,7 +110,10 @@ else
                     @foreach (var member in org.Members)
                     {
                         <tr>
-                            <td>@member.UserName</td>
+                            <td>
+                                @(memberDisplayNames.TryGetValue(member.UserId, out var dn) ? dn : member.UserName)
+                                <small class="text-muted d-block">@member.UserName</small>
+                            </td>
                             <td>
                                 <span class="badge @RoleBadge(member.Role)">@member.Role</span>
                             </td>
@@ -170,7 +175,7 @@ else
                     {
                         var alreadyMember = org.Members.Any(m => m.UserId == user.Id);
                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            @user.GetDisplayName()
+                            @user.GetDisplayName() <small class="text-muted">(@user.Email)</small>
                             @if (alreadyMember)
                             {
                                 <span class="badge bg-success">Já é membro</span>
@@ -225,6 +230,7 @@ else
 
     private string inviteSearch = "";
     private List<ApplicationUser> userResults = new();
+    private Dictionary<string, string> memberDisplayNames = new();
     private HashSet<string> invitedIds = new();
 
     private List<OrganizationInvite> pendingRequests = new();
@@ -246,6 +252,15 @@ else
     private async Task LoadOrg()
     {
         org = await OrgService.GetOrganizationByIdAsync(OrgId);
+        memberDisplayNames.Clear();
+        if (org?.Members != null)
+        {
+            foreach (var member in org.Members)
+            {
+                var user = await UserManager.FindByIdAsync(member.UserId);
+                memberDisplayNames[member.UserId] = user?.GetDisplayName() ?? member.UserName;
+            }
+        }
         if (org == null) { Nav.NavigateTo("/organizations"); return; }
 
         currentRole = await OrgService.GetUserRoleAsync(OrgId, currentUserId!);
