@@ -81,6 +81,47 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.Use(async (context, next) =>
+{
+    var allowedPaths = new[]
+    {
+        "/Identity/Account/EmailNotConfirmed",
+        "/Identity/Account/ResendEmailConfirmation",
+        "/Identity/Account/ConfirmEmail",
+        "/Identity/Account/Login",
+        "/Identity/Account/Register",
+        "/Identity/Account/RegisterConfirmation",
+        "/Identity/Account/Logout",
+        "/Identity/Account/ForgotPassword",
+        "/Identity/Account/ForgotPasswordConfirmation",
+        "/Identity/Account/ResetPassword",
+        "/Identity/Account/ResetPasswordConfirmation",
+        "/_blazor",
+        "/_framework",
+        "/css",
+        "/lib",
+        "/js"
+    };
+
+    var path = context.Request.Path.Value ?? "";
+    var isAllowedPath = allowedPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+
+    if (!isAllowedPath && context.User.Identity?.IsAuthenticated == true)
+    {
+        var userManager = context.RequestServices.GetRequiredService<UserManager<TaskManager.Models.ApplicationUser>>();
+        var user = await userManager.GetUserAsync(context.User);
+
+        if (user != null && !user.EmailConfirmed && !isDev)
+        {
+            context.Response.Redirect("/Identity/Account/EmailNotConfirmed");
+            return;
+        }
+    }
+
+    await next();
+});
+
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()

@@ -1,0 +1,36 @@
+@page
+@model EmailNotConfirmedModel
+@{
+    ViewData["Title"] = "Confirme seu email";
+    Layout = "~/Areas/Identity/Pages/_AuthLayout.cshtml";
+}
+
+<div class="auth-card">
+    <div class="auth-header">
+        <i class="bi bi-envelope-exclamation auth-logo"></i>
+        <h1 class="auth-title">Confirme seu email</h1>
+        <p class="auth-subtitle">
+            Enviamos um link de confirmação para <strong>@Model.Email</strong>.
+            Verifique sua caixa de entrada (e o spam) para ativar sua conta.
+        </p>
+    </div>
+
+    @if (Model.StatusMessage != null)
+    {
+        <div class="alert alert-info py-2 small">@Model.StatusMessage</div>
+    }
+
+    <form method="post">
+        <button type="submit" class="btn btn-primary w-100 mb-3">
+            <i class="bi bi-send me-2"></i>Reenviar email de confirmação
+        </button>
+    </form>
+
+    <form method="post" action="/Identity/Account/Logout">
+        <AntiforgeryToken />
+        <input type="hidden" name="ReturnUrl" value="/Identity/Account/Login" />
+        <button type="submit" class="btn btn-outline-secondary w-100">
+            Sair
+        </button>
+    </form>
+</div>
