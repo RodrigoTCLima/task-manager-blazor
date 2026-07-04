@@ -229,3 +229,23 @@ html[data-theme="dark"] .list-group-item {
 html[data-theme="dark"] .list-group-item:hover {
     background-color: var(--bg-hover);
 }
+
+.top-row .btn-outline-primary {
+    color: var(--link-color, #0d6efd) !important;
+    border-color: var(--link-color, #0d6efd) !important;
+}
+
+.top-row .btn-outline-primary:hover {
+    color: #fff !important;
+    background-color: var(--link-color, #0d6efd) !important;
+}
+
+.top-row .btn-primary {
+    color: #fff !important;
+    background-color: #1b6ec2 !important;
+    border-color: #1861ac !important;
+}
+
+html[data-theme="dark"] .form-text {
+    color: var(--text-muted, #8b949e) !important;
+}
