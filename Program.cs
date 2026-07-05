@@ -7,7 +7,6 @@ using TaskManager.Data;
 using TaskManager.Services;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("AppDbContextConnection") ?? throw new InvalidOperationException("Connection string 'AppDbContextConnection' not found.");;
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
