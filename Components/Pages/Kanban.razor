@@ -7,6 +7,7 @@
 @inject OrganizationService OrgService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
+@implements IDisposable
 @rendermode InteractiveServer
 
 <PageTitle>Kanban</PageTitle>
@@ -40,14 +41,19 @@ else if (isLoading)
 }
 else
 {
-    <div class="d-flex align-items-center gap-2 mb-3">
-        <select class="form-select form-select-sm" style="width:auto;" @bind="selectedOrgId" @bind:after="OnOrgChanged">
+<div class="d-flex align-items-center gap-2 mb-3">
+        <select class="form-select form-select-sm" style="width:auto;" @bind="selectedOrgId" @bind:after="OnOrgChanged"
+                disabled="@isLoading">
             <option value="">👤 Pessoal</option>
             @foreach (var org in availableOrgs)
             {
                 <option value="@org.Id">🏢 @org.Name</option>
             }
         </select>
+        @if (isLoading)
+        {
+            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+        }
         @if (orgId.HasValue)
         {
             @if (canViewOthers)
@@ -272,12 +278,23 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Nav.LocationChanged += OnLocationChanged;
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         currentUserId = auth.User.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         availableOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId!);
+        await LoadFromUrl();
+    }
+
+    private async Task LoadFromUrl()
+    {
+        isLoading = true;
+        accessDenied = false;
+        await InvokeAsync(StateHasChanged);
+
         var uri = Nav.ToAbsoluteUri(Nav.Uri);
         var qs = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
         if (qs.TryGetValue("orgId", out var orgIdStr) && int.TryParse(orgIdStr, out var parsedOrgId))
         {
             orgId = parsedOrgId;
@@ -292,10 +309,18 @@ else
                 {
                     accessDenied = true;
                     isLoading = false;
+                    await InvokeAsync(StateHasChanged);
                     return;
                 }
                 canViewOthers = OrgService.CanViewOthersKanban(org, role.Value);
             }
+        }
+        else
+        {
+            orgId = null;
+            selectedOrgId = "";
+            orgName = null;
+            canViewOthers = false;
         }
 
         allTasks = await TaskService.GetAllTasksAsync(currentUserId, orgId);
@@ -308,7 +333,6 @@ else
                 .ToList();
         }
 
-        // Sync: completed -> Done, recurrent -> Recurrent
         foreach (var t in allTasks)
         {
             if (t.IsCompleted)
@@ -323,15 +347,30 @@ else
 
         ApplyFilters();
         isLoading = false;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async Task OnOrgChanged()
+    private void OnOrgChanged()
     {
         if (string.IsNullOrEmpty(selectedOrgId))
-            Nav.NavigateTo("/kanban", forceLoad: true);
+            Nav.NavigateTo("/kanban");
         else
-            Nav.NavigateTo($"/kanban?orgId={selectedOrgId}", forceLoad: true);
+            Nav.NavigateTo($"/kanban?orgId={selectedOrgId}");
     }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (e.Location.Contains("/kanban"))
+        {
+            await LoadFromUrl();
+        }
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
     private void ApplyFilters()
     {
         var result = allTasks.AsEnumerable();
