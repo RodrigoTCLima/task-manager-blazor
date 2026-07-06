@@ -20,6 +20,11 @@
             <input type="text" class="form-control" value="@Model.Username" disabled />
             <div class="form-text">O nome de usuário não pode ser alterado.</div>
         </div>
+        <div class="mb-3">
+            <label asp-for="Input.DisplayName" class="form-label">Nome de exibição</label>
+            <input asp-for="Input.DisplayName" class="form-control" placeholder="Como você quer ser chamado" />
+            <span asp-validation-for="Input.DisplayName" class="text-danger small"></span>
+        </div>
 
         <div class="mb-4">
             <label asp-for="Input.PhoneNumber" class="form-label">Telefone</label>
