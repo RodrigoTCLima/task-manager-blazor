@@ -835,7 +835,7 @@ else
                 {
                     "Daily" => true,
                     "Weekly" => (date - origin).Days % 7 == 0,
-                    "Monthly" => date.Day == origin.Day,
+                    "Monthly" => IsMonthlyOccurrence(date, origin),
                     _ => false
                 };
             }
@@ -844,6 +844,16 @@ else
         })
         .OrderBy(t => t.Priority)
         .ToList();
+    }
+
+    // Verifica se `date` é a ocorrência mensal de `origin`.
+    // Se o dia de origem (ex: 31) não existe no mês de `date` (ex: fevereiro),
+    // a ocorrência cai no último dia daquele mês.
+    private bool IsMonthlyOccurrence(DateTime date, DateTime origin)
+    {
+        var daysInMonth = DateTime.DaysInMonth(date.Year, date.Month);
+        var expectedDay = Math.Min(origin.Day, daysInMonth);
+        return date.Day == expectedDay;
     }
 
     // Painel lateral

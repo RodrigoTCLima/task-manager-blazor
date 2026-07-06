@@ -9,7 +9,12 @@ using TaskManager.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options =>
+    {
+        options.DisconnectedCircuitMaxRetained = 100;
+        options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(5);
+        options.JSInteropDefaultCallTimeout = TimeSpan.FromSeconds(30);
+    });
 
 // ── DATABASE ──────────────────────────────────────────────────────────────────
 var isDev = builder.Environment.IsDevelopment();
