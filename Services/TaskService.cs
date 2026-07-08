@@ -115,6 +115,7 @@ public class TaskService
         existing.NeedsReview = task.NeedsReview;
         existing.ReviewByUserId = task.ReviewByUserId;
         existing.ReviewedByUserId = task.ReviewedByUserId;
+        existing.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
@@ -236,6 +237,7 @@ public class TaskService
         }
 
         task.IsCompleted = !task.IsCompleted;
+        task.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Se task recorrente foi marcada como CONCLUÍDA, criar próxima instância
@@ -450,6 +452,7 @@ public class TaskService
 
         task.KanbanStatus = newStatus;
         task.IsCompleted = newStatus == KanbanStatus.Done;
+        task.UpdatedAt = DateTime.UtcNow;
 
         if (newStatus == KanbanStatus.Recurrent)
         {
@@ -495,5 +498,24 @@ public class TaskService
             (t.ReviewByUserId != null && t.ReviewByUserId.Contains(userId)
                 && !(t.ReviewedByUserId != null && t.ReviewedByUserId.Contains(userId)))
         );
+    }
+
+    /// <summary>
+    /// Retorna as tasks mais recentemente modificadas (por UpdatedAt) entre as tasks
+    /// pessoais e de organizações do usuário, para exibir atividade recente no dashboard.
+    /// </summary>
+    public async Task<List<TaskItem>> GetRecentlyUpdatedTasksAsync(string userId, List<int> orgIds, int take = 8)
+    {
+        using var _context = CreateContext();
+
+        var query = _context.Tasks
+            .Where(t => t.UpdatedAt != null &&
+                        ((t.OrganizationId == null && t.AuthorUserId == userId) ||
+                         (t.OrganizationId != null && orgIds.Contains(t.OrganizationId.Value))))
+            .OrderByDescending(t => t.UpdatedAt)
+            .Take(take)
+            .AsNoTracking();
+
+        return await query.ToListAsync();
     }
 }

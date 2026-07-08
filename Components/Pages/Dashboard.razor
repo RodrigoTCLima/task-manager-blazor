@@ -25,7 +25,7 @@ else
         <div>
             <h4 class="mb-0 fw-bold">👋 Olá, @userName!</h4>
             <small class="text-muted">@DateTime.Now.ToString("dddd, dd 'de' MMMM 'de' yyyy", new
-                            System.Globalization.CultureInfo("pt-BR"))</small>
+                                                                                                            System.Globalization.CultureInfo("pt-BR"))</small>
             </div>
             <a href="/add-task" class="btn btn-primary btn-sm">+ Nova Tarefa</a>
         </div>
@@ -40,7 +40,7 @@ else
             @if (selectedOrgId != "")
             {
                 <span class="text-muted small">Exibindo dados de <strong>@userOrgs.FirstOrDefault(o => o.Id.ToString() ==
-                                selectedOrgId)?.Name</strong></span>
+                                                                                                                                    selectedOrgId)?.Name</strong></span>
                 }
             </div>
 
@@ -346,7 +346,63 @@ else
 
                         </div>
                     }
+                    <!-- ══ SEÇÃO: ATIVIDADE RECENTE ══ -->
+                    <div class="mb-2">
+                        <button class="btn btn-link text-decoration-none text-dark p-0 d-flex align-items-center gap-2 w-100"
+                                @onclick='() => sectionOpen["activity"] = !sectionOpen["activity"]'>
+                            <span class="fw-bold fs-6">Atividade recente</span>
+                            <hr class="flex-grow-1 my-0 ms-2" />
+                            <span class="text-muted small ms-2">@(sectionOpen["activity"] ? "▲" : "▼")</span>
+                        </button>
+                    </div>
 
+                    @if (sectionOpen["activity"])
+                    {
+                        @if (!recentActivity.Any())
+                        {
+                            <div class="card border-0 shadow-sm mb-5" style="border-left: 4px solid #6c757d !important;">
+                                <div class="card-body py-4 text-center">
+                                    <div class="fs-1 mb-2">🕒</div>
+                                    <p class="text-muted small mb-0">Não há atividades recentes. Vamos concluir alguma task?</p>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="card border-0 shadow-sm mb-5">
+                                <div class="card-body p-0">
+                                    @foreach (var t in recentActivity)
+                                    {
+                                        var orgNameR = t.OrganizationId.HasValue
+                                            ? userOrgs.FirstOrDefault(o => o.Id == t.OrganizationId)?.Name
+                                            : null;
+                                        <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom">
+                                            <span class="text-muted small" style="min-width:60px;">
+                                                @GetRelativeTime(t.UpdatedAt!.Value)
+                                            </span>
+                                            <div class="flex-grow-1">
+                                                <a href="/task/@t.Id" class="text-decoration-none text-dark small fw-semibold">
+                                                    <span class="text-muted me-1">#@t.Id</span>@t.Title
+                                                </a>
+                                                @if (orgNameR != null)
+                                                {
+                                                    <span class="badge bg-light text-dark border ms-2" style="font-size:.65rem;">🏢 @orgNameR</span>
+                                                }
+                                            </div>
+                                            @if (t.IsCompleted)
+                                            {
+                                                <span class="badge bg-success small">✅ Concluída</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge @GetPriorityClass(t.Priority)">@GetPriorityEmoji(t.Priority) @t.Priority</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
                     <!-- ══ SEÇÃO: ESTATÍSTICAS ══ -->
                     @if (totalTasks > 0)
                     {
@@ -452,6 +508,7 @@ else
     private List<TaskItem> recentlyCompleted = new();
     private List<TaskItem> blockedTasks = new();
     private List<TaskItem> dueSoonTasks = new();
+    private List<TaskItem> recentActivity = new();
     private List<Organization> userOrgs = new();
 
     // Lista unificada "Para fazer agora"
@@ -464,6 +521,7 @@ else
         ["blocked"] = false,
         ["todo"] = true,
         ["context"] = true,
+        ["activity"] = true,
         ["stats"] = false,
     };
 
@@ -485,6 +543,8 @@ else
         // Tasks pessoais + orgs
         allTasks = await TaskService.GetAllTasksAsync(currentUserId, null);
         userOrgs = await OrgService.GetUserOrganizationsAsync(currentUserId!);
+        var orgIds = userOrgs.Select(o => o.Id).ToList();
+        recentActivity = await TaskService.GetRecentlyUpdatedTasksAsync(currentUserId!, orgIds, take: 8);
         foreach (var org in userOrgs)
         {
             var orgTasks = await TaskService.GetAllTasksAsync(currentUserId, org.Id);
@@ -661,4 +721,14 @@ else
         <= 20 => "🟢",
         _ => "⚪"
     };
+
+    private string GetRelativeTime(DateTime updatedAt)
+    {
+        var diff = DateTime.UtcNow - updatedAt;
+        if (diff.TotalMinutes < 1) return "agora";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}min";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d";
+        return updatedAt.ToLocalTime().ToString("dd/MM");
+    }
 }
