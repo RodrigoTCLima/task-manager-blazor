@@ -8,6 +8,8 @@
 @inject NavigationManager Nav
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
+@inject AttachmentService AttachmentService
+
 @rendermode InteractiveServer
 
 <PageTitle>Detalhes da Tarefa</PageTitle>
@@ -148,7 +150,59 @@ else
                         <div class="card-body">@task.RecurrencePattern</div>
                     </div>
                 }
+                <!-- Anexos -->
+<div class="card mb-3">
+    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+        <span>📎 Anexos</span>
+        <span class="small text-muted">@attachments.Count arquivo(s)</span>
+    </div>
+    <div class="card-body">
+        <InputFile OnChange="OnFileSelected" class="form-control mb-2" multiple />
+        <div class="form-text mb-3">Tamanho máximo por arquivo: 20MB.</div>
 
+        @if (uploadError != null)
+        {
+            <div class="alert alert-danger py-2 small">@uploadError</div>
+        }
+
+        @if (isUploading)
+        {
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                <span class="small text-muted">Enviando arquivo...</span>
+            </div>
+        }
+
+        @if (!attachments.Any())
+        {
+            <p class="text-muted small mb-0">Nenhum anexo ainda.</p>
+        }
+        else
+        {
+            <ul class="list-group list-group-flush">
+                @foreach (var att in attachments)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi @GetFileIcon(att.ContentType)"></i>
+                            <div>
+                                <a href="/api/attachments/@att.Id/download" target="_blank" class="text-decoration-none fw-semibold small">
+    @att.FileName
+</a>
+                                <div class="text-muted" style="font-size:.7rem;">
+                                    @FormatFileSize(att.SizeBytes) · @att.UploadedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAttachment(att.Id)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>
                 <!-- Comentários -->
                 <div class="card mb-3">
                     <div class="card-header fw-bold">💬 Comentários</div>
@@ -164,163 +218,164 @@ else
                                 {
                                     <li class="list-group-item">
                                         <div class="d-flex justify-content-between">
-                                            <strong>@(commentAuthorNames.TryGetValue(comment.AuthorUserId, out var cname) ? cname : comment.AuthorUserId[..8])</strong>
-                                            <small class="text-muted">@comment.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
-                                        </div>
-                                        <p class="mb-0 mt-1">@comment.Content</p>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
-                </div>
-                @if (dependencies.Any())
-                {
-                    <div class="card mb-3">
-                        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
-                            <span>🔗 Depende de</span>
-                            <span class="small text-muted">
-                                @dependencies.Count(d => d.IsCompleted)/@dependencies.Count concluídas
-                            </span>
-                        </div>
-                        @{
-                            var total = dependencies.Count;
-                            var done = dependencies.Count(d => d.IsCompleted);
-                            var pct = total > 0 ? (done * 100 / total) : 0;
-                        }
-                        <div class="progress" style="height: 6px; border-radius: 0;">
-                            <div class="progress-bar bg-success" style="width:@pct%"></div>
-                        </div>
-                        <ul class="list-group list-group-flush">
-                            @foreach (var dep in dependencies)
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <input type="checkbox" class="form-check-input mt-0" checked="@dep.IsCompleted"
-                                               @onchange="() => ToggleDependencyTask(dep.Id)" style="width:1.1rem;height:1.1rem;" />
-                                        @{
-                                            var depTooltip = dep.Title + (!string.IsNullOrWhiteSpace(dep.Description) ? " — " + dep.Description
-                                            : "");
-                                            var depLinkTooltip = !string.IsNullOrWhiteSpace(dep.Description) ? dep.Description : dep.Title;
-                                        }
-                                        <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")"
-                                           title="@depLinkTooltip">
-                                            <span class="badge bg-secondary me-1" title="@depTooltip">
-                                                #@dep.Id
-                                            </span>@dep.Title
-                                        </a>
-
-                                    </div>
-                                    <div class="d-flex align-items-center gap-1">
-                                        <span class="badge @GetPriorityClass(dep.Priority)">@GetPriorityEmoji(dep.Priority)</span>
-                                        @if (dep.IsCompleted)
-                                        {
-                                            <span class="badge bg-success">✅</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-warning text-dark">⏳</span>
-                                        }
-                                    </div>
-                                </li>
+                                            <strong>@(commentAuthorNames.TryGetValue(comment.AuthorUserId, out var cname) ? cname :
+                                                                            comment.AuthorUserId[..8])</strong>
+                                                <small class="text-muted">@comment.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                            </div>
+                                            <p class="mb-0 mt-1">@comment.Content</p>
+                                        </li>
+                                    }
+                                </ul>
                             }
-                        </ul>
+                        </div>
                     </div>
-                }
-                <!-- Revisão -->
-                @if (task.NeedsReview > 0 && task.ReviewByUserId?.Any() == true)
-                {
-                    <div class="card mb-3">
-                        <div class="card-header fw-bold d-flex justify-content-between align-items-center">
-                            <span>🔍 Revisão</span>
-                            <span class="small text-muted">
-                                @(task.ReviewedByUserId?.Count ?? 0)/@task.NeedsReview revisão(ões) concluída(s)
-                            </span>
-                        </div>
-                        @{
-                            var reviewDone = task.ReviewedByUserId?.Count ?? 0;
-                            var reviewPct = task.NeedsReview > 0 ? (reviewDone * 100 / task.NeedsReview) : 0;
-                        }
-                        <div class="progress" style="height: 6px; border-radius: 0;">
-                            <div class="progress-bar bg-info" style="width:@reviewPct%"></div>
-                        </div>
-                        <div class="card-body">
-                            @if (reviewDone >= task.NeedsReview)
-                            {
-                                <div class="alert alert-success py-1 mb-2">✅ Todas as revisões concluídas.</div>
+                    @if (dependencies.Any())
+                    {
+                        <div class="card mb-3">
+                            <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+                                <span>🔗 Depende de</span>
+                                <span class="small text-muted">
+                                    @dependencies.Count(d => d.IsCompleted)/@dependencies.Count concluídas
+                                </span>
+                            </div>
+                            @{
+                                var total = dependencies.Count;
+                                var done = dependencies.Count(d => d.IsCompleted);
+                                var pct = total > 0 ? (done * 100 / total) : 0;
                             }
-
-                            <ul class="list-group list-group-flush mb-3">
-                                @foreach (var reviewerId in task.ReviewByUserId!)
+                            <div class="progress" style="height: 6px; border-radius: 0;">
+                                <div class="progress-bar bg-success" style="width:@pct%"></div>
+                            </div>
+                            <ul class="list-group list-group-flush">
+                                @foreach (var dep in dependencies)
                                 {
-                                    var alreadyReviewed = task.ReviewedByUserId?.Contains(reviewerId) == true;
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>
-                                            @if (alreadyReviewed)
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input type="checkbox" class="form-check-input mt-0" checked="@dep.IsCompleted"
+                                                   @onchange="() => ToggleDependencyTask(dep.Id)" style="width:1.1rem;height:1.1rem;" />
+                                            @{
+                                                var depTooltip = dep.Title + (!string.IsNullOrWhiteSpace(dep.Description) ? " — " + dep.Description
+                                                : "");
+                                                var depLinkTooltip = !string.IsNullOrWhiteSpace(dep.Description) ? dep.Description : dep.Title;
+                                            }
+                                            <a href="/task/@dep.Id" class="text-decoration-none @(dep.IsCompleted ? "text-muted" : "")"
+                                               title="@depLinkTooltip">
+                                                <span class="badge bg-secondary me-1" title="@depTooltip">
+                                                    #@dep.Id
+                                                </span>@dep.Title
+                                            </a>
+
+                                        </div>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="badge @GetPriorityClass(dep.Priority)">@GetPriorityEmoji(dep.Priority)</span>
+                                            @if (dep.IsCompleted)
                                             {
-                                                <span class="badge bg-success me-2">✅</span>
+                                                <span class="badge bg-success">✅</span>
                                             }
                                             else
                                             {
-                                                <span class="badge bg-secondary me-2">⏳</span>
+                                                <span class="badge bg-warning text-dark">⏳</span>
                                             }
-                                            @(reviewerNames.TryGetValue(reviewerId, out var rname) ? rname : reviewerId[..8])
-
-                                        </span>
-                                        @if (alreadyReviewed)
-                                        {
-                                            <span class="text-muted small">Revisado</span>
-                                        }
+                                        </div>
                                     </li>
                                 }
                             </ul>
-
-                            <!-- Botão para o revisor atual marcar como revisado -->
-                            @if (isReviewer && !hasCurrentUserReviewed)
-                            {
-                                <button class="btn btn-success" @onclick="MarkAsReviewed">
-                                    ✅ Marcar minha revisão como concluída
-                                </button>
-                            }
-                            else if (isReviewer && hasCurrentUserReviewed)
-                            {
-                                <span class="text-muted small">Você já revisou esta tarefa.</span>
-                            }
-
-                            @* Aviso para o autor quando revisão ainda está pendente *@
-                            @if (task.AuthorUserId == currentUserId && reviewPending && !isReviewer)
-                            {
-                                <div class="alert alert-info py-2 mt-2 mb-0">
-                                    ⏳ Aguardando revisão de
-                                    @(task.ReviewByUserId!.Count(r => task.ReviewedByUserId == null || !task.ReviewedByUserId.Contains(r)))
-                                    revisor(es) para poder concluir esta tarefa.
-                                </div>
-                            }
-
-                            @* Botão de nova rodada para o autor após revisão completa *@
-                            @if (task.AuthorUserId == currentUserId && !reviewPending && task.NeedsReview > 0)
-                            {
-                                <button class="btn btn-outline-info mt-2" @onclick="RequestReview">
-                                    🔔 Solicitar nova rodada de revisão
-                                </button>
-                            }
-
                         </div>
-                    </div>
-                }
-
-
-                <!-- Botões -->
-                <div class="d-flex gap-2 mt-4">
-                    <a href="/dashboard" class="btn btn-outline-secondary">← Voltar ao Dashboard</a>
-                    @if (canEdit)
-                    {
-                        <a href="/edit-task/@task.Id" class="btn btn-primary">✏️ Editar</a>
                     }
-                </div>
+                    <!-- Revisão -->
+                    @if (task.NeedsReview > 0 && task.ReviewByUserId?.Any() == true)
+                    {
+                        <div class="card mb-3">
+                            <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+                                <span>🔍 Revisão</span>
+                                <span class="small text-muted">
+                                    @(task.ReviewedByUserId?.Count ?? 0)/@task.NeedsReview revisão(ões) concluída(s)
+                                </span>
+                            </div>
+                            @{
+                                var reviewDone = task.ReviewedByUserId?.Count ?? 0;
+                                var reviewPct = task.NeedsReview > 0 ? (reviewDone * 100 / task.NeedsReview) : 0;
+                            }
+                            <div class="progress" style="height: 6px; border-radius: 0;">
+                                <div class="progress-bar bg-info" style="width:@reviewPct%"></div>
+                            </div>
+                            <div class="card-body">
+                                @if (reviewDone >= task.NeedsReview)
+                                {
+                                    <div class="alert alert-success py-1 mb-2">✅ Todas as revisões concluídas.</div>
+                                }
 
-            </div>
-        }
+                                <ul class="list-group list-group-flush mb-3">
+                                    @foreach (var reviewerId in task.ReviewByUserId!)
+                                    {
+                                        var alreadyReviewed = task.ReviewedByUserId?.Contains(reviewerId) == true;
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <span>
+                                                @if (alreadyReviewed)
+                                                {
+                                                    <span class="badge bg-success me-2">✅</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary me-2">⏳</span>
+                                                }
+                                                @(reviewerNames.TryGetValue(reviewerId, out var rname) ? rname : reviewerId[..8])
+
+                                            </span>
+                                            @if (alreadyReviewed)
+                                            {
+                                                <span class="text-muted small">Revisado</span>
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+
+                                <!-- Botão para o revisor atual marcar como revisado -->
+                                @if (isReviewer && !hasCurrentUserReviewed)
+                                {
+                                    <button class="btn btn-success" @onclick="MarkAsReviewed">
+                                        ✅ Marcar minha revisão como concluída
+                                    </button>
+                                }
+                                else if (isReviewer && hasCurrentUserReviewed)
+                                {
+                                    <span class="text-muted small">Você já revisou esta tarefa.</span>
+                                }
+
+                                @* Aviso para o autor quando revisão ainda está pendente *@
+                                @if (task.AuthorUserId == currentUserId && reviewPending && !isReviewer)
+                                {
+                                    <div class="alert alert-info py-2 mt-2 mb-0">
+                                        ⏳ Aguardando revisão de
+                                        @(task.ReviewByUserId!.Count(r => task.ReviewedByUserId == null || !task.ReviewedByUserId.Contains(r)))
+                                        revisor(es) para poder concluir esta tarefa.
+                                    </div>
+                                }
+
+                                @* Botão de nova rodada para o autor após revisão completa *@
+                                @if (task.AuthorUserId == currentUserId && !reviewPending && task.NeedsReview > 0)
+                                {
+                                    <button class="btn btn-outline-info mt-2" @onclick="RequestReview">
+                                        🔔 Solicitar nova rodada de revisão
+                                    </button>
+                                }
+
+                            </div>
+                        </div>
+                    }
+
+
+                    <!-- Botões -->
+                    <div class="d-flex gap-2 mt-4">
+                        <a href="/dashboard" class="btn btn-outline-secondary">← Voltar ao Dashboard</a>
+                        @if (canEdit)
+                        {
+                            <a href="/edit-task/@task.Id" class="btn btn-primary">✏️ Editar</a>
+                        }
+                    </div>
+
+                </div>
+            }
 
 @code {
     [Parameter] public int Id { get; set; }
@@ -336,6 +391,9 @@ else
     private bool canComplete = true;
     private bool canDelete = true;
     private Dictionary<string, string> commentAuthorNames = new();
+        private List<TaskAttachment> attachments = new();
+private bool isUploading = false;
+private string? uploadError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -360,6 +418,7 @@ else
         }
 
         dependencies = await TaskService.GetDependenciesAsync(Id);
+        attachments = await AttachmentService.GetByTaskIdAsync(Id);
         if (task.Comments?.Any() == true)
         {
             foreach (var uid in task.Comments.Select(c => c.AuthorUserId).Distinct())
@@ -466,6 +525,69 @@ else
         await TaskService.UpdateTaskAsync(task);
         await LoadTask();
     }
+
+private async Task OnFileSelected(InputFileChangeEventArgs e)
+{
+    uploadError = null;
+    isUploading = true;
+    StateHasChanged();
+
+    try
+    {
+        foreach (var file in e.GetMultipleFiles(maximumFileCount: 10))
+        {
+            if (file.Size > AttachmentService.MaxFileSizeBytes)
+            {
+                uploadError = $"O arquivo \"{file.Name}\" excede o limite de 20MB e não foi enviado.";
+                continue;
+            }
+
+            using var stream = file.OpenReadStream(maxAllowedSize: AttachmentService.MaxFileSizeBytes);
+
+await AttachmentService.UploadAsync(
+    task!.Id,
+    file.Name,
+    file.ContentType,
+    stream,
+    currentUserId!
+);
+        }
+
+        attachments = await AttachmentService.GetByTaskIdAsync(Id);
+    }
+    catch (Exception ex)
+    {
+        uploadError = $"Erro ao enviar arquivo: {ex.Message}";
+    }
+    finally
+    {
+        isUploading = false;
+        StateHasChanged();
+    }
+}
+private async Task DeleteAttachment(int attachmentId)
+{
+    await AttachmentService.DeleteAsync(attachmentId);
+    attachments = await AttachmentService.GetByTaskIdAsync(Id);
+}
+
+private string GetFileIcon(string contentType) => contentType switch
+{
+    var ct when ct.StartsWith("image/") => "bi-file-earmark-image text-primary",
+    "application/pdf" => "bi-file-earmark-pdf text-danger",
+    var ct when ct.Contains("word") => "bi-file-earmark-word text-primary",
+    var ct when ct.Contains("sheet") || ct.Contains("excel") => "bi-file-earmark-excel text-success",
+    var ct when ct.Contains("zip") || ct.Contains("compressed") => "bi-file-earmark-zip text-warning",
+    _ => "bi-file-earmark text-secondary"
+};
+
+private string FormatFileSize(long bytes)
+{
+    if (bytes < 1024) return $"{bytes} B";
+    if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+    return $"{bytes / (1024.0 * 1024.0):F1} MB";
+}
+
 
 
 }

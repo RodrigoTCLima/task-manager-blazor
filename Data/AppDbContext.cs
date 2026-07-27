@@ -15,6 +15,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<OrganizationMember> OrganizationMembers { get; set; }
     public DbSet<OrganizationInvite> OrganizationInvites { get; set; }
     public DbSet<Notification> Notifications { get; set; }
+    public DbSet<TaskAttachment> TaskAttachments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -48,6 +49,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasOne<TaskItem>()
             .WithMany(t => t.Comments)
             .HasForeignKey(c => c.TaskItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ── TaskAttachment -> TaskItem ─────────────────────────────────────────
+        builder.Entity<TaskAttachment>()
+            .HasOne<TaskItem>()
+            .WithMany()
+            .HasForeignKey(a => a.TaskItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // ── Tags ─────────────────────────────────────────────────────────────

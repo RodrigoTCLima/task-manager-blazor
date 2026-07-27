@@ -5,8 +5,15 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using TaskManager.Components;
 using TaskManager.Data;
 using TaskManager.Services;
+using TaskManager.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("AppDbContextConnection") ?? throw new InvalidOperationException("Connection string 'AppDbContextConnection' not found.");;
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddUserSecrets<Program>();
+}
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
@@ -62,6 +69,7 @@ builder.Services.AddScoped<TaskService>();
 builder.Services.AddScoped<CommentService>();
 builder.Services.AddScoped<OrganizationService>();
 builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<AttachmentService>();
 builder.Services.AddSingleton<AppState>();
 
 var app = builder.Build();
@@ -133,6 +141,8 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapRazorPages();
+AttachmentEndpoints.MapAttachmentEndpoints(app);
+//app.MapAttachmentEndpoints();
 
 // ── AUTO MIGRATE ON STARTUP ───────────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
@@ -142,3 +152,5 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+
