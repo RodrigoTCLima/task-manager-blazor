@@ -8,7 +8,6 @@ using TaskManager.Services;
 using TaskManager.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("AppDbContextConnection") ?? throw new InvalidOperationException("Connection string 'AppDbContextConnection' not found.");;
 
 if (builder.Environment.IsDevelopment())
 {
