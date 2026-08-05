@@ -464,7 +464,7 @@
                 {
                     var orgForEdit = allOrgs.FirstOrDefault(o => o.Id == editingTask.OrganizationId);
                     var roleForEdit = await OrgService.GetUserRoleAsync(editingTask.OrganizationId.Value, currentUserId!);
-                    if (orgForEdit == null || !roleForEdit.HasValue || !OrgService.CanCreateTask(orgForEdit, roleForEdit.Value))
+                    if (orgForEdit == null || !roleForEdit.HasValue || !OrgService.CanEditTask(orgForEdit, roleForEdit.Value))
                     {
                         permissionError = "Você não tem permissão para editar tasks desta organização.";
                         return;
