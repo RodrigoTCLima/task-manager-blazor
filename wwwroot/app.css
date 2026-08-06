@@ -249,3 +249,23 @@ html[data-theme="dark"] .list-group-item:hover {
 html[data-theme="dark"] .form-text {
     color: var(--text-muted, #8b949e) !important;
 }
+
+.notification-unread {
+    background-color: var(--bg-hover, #f8f9fa) !important;
+}
+
+html[data-theme="dark"] .list-group-item-action:hover {
+    background-color: var(--bg-hover) !important;
+    color: var(--text-body) !important;
+}
+
+.comments-box {
+    background-color: var(--bg-muted, #f8f9fa);
+    border-color: var(--border-color, #dee2e6) !important;
+}
+
+.comment-item {
+    background-color: var(--bg-card, white);
+    border-color: var(--border-color, #dee2e6) !important;
+    color: var(--text-body, #212529);
+}
